@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/rchapman/go-any-proxy.png)](https://travis-ci.org/ryanchapman/go-any-proxy)
+[![Build Status](https://travis-ci.org/ryanchapman/go-any-proxy.png)](https://travis-ci.org/ryanchapman/go-any-proxy)
 
 # Any Proxy
 
