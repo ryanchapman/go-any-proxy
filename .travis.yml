@@ -1,4 +1,11 @@
 language: go
 
+before_install:
+ - "cd $TRAVIS_BUILD_DIR && chmod +x ./make.bash && ./make.bash version"
+
 script:
  - go test -v ./...
+
+after_failure:
+ - "cd $TRAVIS_BUILD_DIR && ./make.bash build_failed"
+
