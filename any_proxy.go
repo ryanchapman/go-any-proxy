@@ -309,9 +309,8 @@ func dial(spec string) (*net.TCPConn, error) {
     }
     if _, ok := conn.(*net.TCPConn); ok {
         return conn.(*net.TCPConn), err
-    } else {
-        return nil, err
     }
+    return nil, err
 }
 
 func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
