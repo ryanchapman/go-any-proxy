@@ -4,19 +4,19 @@
 GOOS=linux
 #GOARCH=386
 
-function make_version()
+function make_version ()
 {
     local timestamp=`date +%s`
     local builduser=`id -un`
     local buildhost=`hostname`
-cat <<vEOF >version.go
+cat <<vEOF >$BUILD_DIR/version.go
 package main
 
 const BUILDTIMESTAMP = $timestamp
-const BUILDUSER      = $builduser
-const BUILDHOST      = $buildhost
+const BUILDUSER      = "$builduser"
+const BUILDHOST      = "$buildhost"
 vEOF
-    echo "Wrote version.go: timestamp=$timestamp; builduser=$builduser; buildhost=$buildhost"
+    echo "Wrote $BUILD_DIR/version.go: timestamp=$timestamp; builduser=$builduser; buildhost=$buildhost"
 }
 
 function build ()
@@ -34,8 +34,13 @@ function build_failed ()
     pwd | sed 's/^/  /g'
     echo "Environment:"
     set | sed 's/^/  /g'
+    echo "$BUILD_DIR/version.go:"
+    cat $BUILD_DIR/version.go | sed 's/^/  /g'
 }
 
+
+export BUILD_DIR=$2
+if [ "$BUILD_DIR" = "" ]; then export BUILD_DIR=.; fi
 case $1 in 
   "clean")
     rm -f version.go
@@ -47,7 +52,7 @@ case $1 in
     make_version
     ;;
   "build_failed")
-    build_failed 
+    build_failed
     ;;
   *)
     build
