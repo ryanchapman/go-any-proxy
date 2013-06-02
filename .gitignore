@@ -1,0 +1,10 @@
+*
+!.gitignore
+!*_test.go
+!any_proxy.go
+!stats.go
+!make.bash
+!README*
+!flogger/
+!COPYING
+
