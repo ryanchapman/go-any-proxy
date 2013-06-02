@@ -2,7 +2,7 @@ package main
 
 import (
     "fmt"
-    log "./flogger"
+    log "github.com/ryanchapman/go-any-proxy/flogger"
     "os"
     "os/signal"
     "runtime"

@@ -18,7 +18,7 @@ import (
     "flag"
     "fmt"
     "io"
-    log "./flogger"
+    log "github.com/ryanchapman/go-any-proxy/flogger"
     "net"
     "os"
     "os/signal"
