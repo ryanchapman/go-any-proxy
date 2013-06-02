@@ -42,174 +42,199 @@ import (
     "time"
 )
 
-/* STATS */
-var acceptErrorsMu             sync.Mutex
-var acceptErrors               uint64 = 0
+var acceptErrors struct {
+    sync.Mutex
+    n uint64
+}
 
-var acceptSuccessesMu          sync.Mutex
-var acceptSuccesses            uint64 = 0
+var acceptSuccesses struct {
+    sync.Mutex
+    n uint64
+}
 
-var getOriginalDstErrorsMu     sync.Mutex
-var getOriginalDstErrors       uint64 = 0
+var getOriginalDstErrors struct {
+    sync.Mutex
+    n uint64
+}
 
-var directConnectionsMu        sync.Mutex
-var directConnections          uint64 = 0
+var directConnections struct {
+    sync.Mutex
+    n uint64
+}
 
-var proxiedConnectionsMu       sync.Mutex
-var proxiedConnections         uint64 = 0
+var proxiedConnections struct {
+    sync.Mutex
+    n uint64
+}
 
-var proxy200ResponsesMu        sync.Mutex
-var proxy200Responses          uint64 = 0
+var proxy200Responses struct {
+    sync.Mutex
+    n uint64
+}
 
-var proxy400ResponsesMu        sync.Mutex
-var proxy400Responses          uint64 = 0
+var proxy400Responses struct {
+    sync.Mutex
+    n uint64
+}
 
-var proxyNon200ResponsesMu     sync.Mutex
-var proxyNon200Responses       uint64 = 0
+var proxyNon200Responses struct {
+    sync.Mutex
+    n uint64
+}
 
-var proxyNoConnectResponsesMu  sync.Mutex
-var proxyNoConnectResponses    uint64 = 0
+var proxyNoConnectResponses struct {
+    sync.Mutex
+    n uint64
+}
 
-var proxyServerReadErrMu       sync.Mutex
-var proxyServerReadErr         uint64 = 0
+var proxyServerReadErr struct {
+    sync.Mutex
+    n uint64
+}
 
-var proxyServerWriteErrMu      sync.Mutex
-var proxyServerWriteErr        uint64 = 0
+var proxyServerWriteErr struct {
+    sync.Mutex
+    n uint64
+}
 
-var directServerReadErrMu      sync.Mutex
-var directServerReadErr        uint64 = 0
+var directServerReadErr struct {
+    sync.Mutex
+    n uint64
+}
 
-var directServerWriteErrMu     sync.Mutex
-var directServerWriteErr       uint64 = 0
+var directServerWriteErr struct {
+    sync.Mutex
+    n uint64
+}
 
 func incrAcceptErrors() {
-    acceptErrorsMu.Lock()
-    acceptErrors += 1
-    acceptErrorsMu.Unlock()
+    acceptErrors.Lock()
+    acceptErrors.n++
+    acceptErrors.Unlock()
 }
 
 func numAcceptErrors() (uint64) {
-    return acceptErrors
+    return acceptErrors.n
 }
 
 func incrAcceptSuccesses() {
-    acceptSuccessesMu.Lock()
-    acceptSuccesses += 1
-    acceptSuccessesMu.Unlock()
+    acceptSuccesses.Lock()
+    acceptSuccesses.n++
+    acceptSuccesses.Unlock()
 }
 
 func numAcceptSuccesses() (uint64) {
-    return acceptSuccesses
+    return acceptSuccesses.n
 }
 
 func incrGetOriginalDstErrors() {
-    getOriginalDstErrorsMu.Lock()
-    getOriginalDstErrors += 1
-    getOriginalDstErrorsMu.Unlock()
+    getOriginalDstErrors.Lock()
+    getOriginalDstErrors.n++
+    getOriginalDstErrors.Unlock()
 }
 
 func numGetOriginalDstErrors() (uint64) {
-    return getOriginalDstErrors
+    return getOriginalDstErrors.n
 }
 
 func incrDirectConnections() {
-    directConnectionsMu.Lock()
-    directConnections += 1
-    directConnectionsMu.Unlock()
+    directConnections.Lock()
+    directConnections.n++
+    directConnections.Unlock()
 }
 
 func numDirectConnections() (uint64) {
-    return directConnections
+    return directConnections.n
 }
 
 func incrProxiedConnections() {
-    proxiedConnectionsMu.Lock()
-    proxiedConnections += 1
-    proxiedConnectionsMu.Unlock()
+    proxiedConnections.Lock()
+    proxiedConnections.n++
+    proxiedConnections.Unlock()
 }
 
 func numProxiedConnections() (uint64) {
-    return proxiedConnections
+    return proxiedConnections.n
 }
 
 func incrProxy200Responses() {
-    proxy200ResponsesMu.Lock()
-    proxy200Responses += 1
-    proxy200ResponsesMu.Unlock()
+    proxy200Responses.Lock()
+    proxy200Responses.n++
+    proxy200Responses.Unlock()
 }
 
 func numProxy200Responses() (uint64) {
-    return proxy200Responses
+    return proxy200Responses.n
 }
 
 func incrProxy400Responses() {
-    proxy400ResponsesMu.Lock()
-    proxy400Responses += 1
-    proxy400ResponsesMu.Unlock()
+    proxy400Responses.Lock()
+    proxy400Responses.n++
+    proxy400Responses.Unlock()
 }
 
 func numProxy400Responses() (uint64) {
-    return proxy400Responses
+    return proxy400Responses.n
 }
 
 func incrProxyNon200Responses() {
-    proxyNon200ResponsesMu.Lock()
-    proxyNon200Responses += 1
-    proxyNon200ResponsesMu.Unlock()
+    proxyNon200Responses.Lock()
+    proxyNon200Responses.n++
+    proxyNon200Responses.Unlock()
 }
 
 func numProxyNon200Responses() (uint64) {
-    return proxyNon200Responses
+    return proxyNon200Responses.n
 }
 
 func incrProxyNoConnectResponses() {
-    proxyNoConnectResponsesMu.Lock()
-    proxyNoConnectResponses += 1
-    proxyNoConnectResponsesMu.Unlock()
+    proxyNoConnectResponses.Lock()
+    proxyNoConnectResponses.n++
+    proxyNoConnectResponses.Unlock()
 }
 
 func numProxyNoConnectResponses() (uint64) {
-    return proxyNoConnectResponses
+    return proxyNoConnectResponses.n
 }
 
 func incrProxyServerReadErr() {
-    proxyServerReadErrMu.Lock()
-    proxyServerReadErr += 1
-    proxyServerReadErrMu.Unlock()
+    proxyServerReadErr.Lock()
+    proxyServerReadErr.n++
+    proxyServerReadErr.Unlock()
 }
 
 func numProxyServerReadErr() (uint64) {
-    return proxyServerReadErr
+    return proxyServerReadErr.n
 }
 
 func incrProxyServerWriteErr() {
-    proxyServerWriteErrMu.Lock()
-    proxyServerWriteErr += 1
-    proxyServerWriteErrMu.Unlock()
+    proxyServerWriteErr.Lock()
+    proxyServerWriteErr.n++
+    proxyServerWriteErr.Unlock()
 }
 
 func numProxyServerWriteErr() (uint64) {
-    return proxyServerWriteErr
+    return proxyServerWriteErr.n
 }
 
 func incrDirectServerReadErr() {
-    directServerReadErrMu.Lock()
-    directServerReadErr += 1
-    directServerReadErrMu.Unlock()
+    directServerReadErr.Lock()
+    directServerReadErr.n++
+    directServerReadErr.Unlock()
 }
 
 func numDirectServerReadErr() (uint64) {
-    return directServerReadErr
+    return directServerReadErr.n
 }
 
 func incrDirectServerWriteErr() {
-    directServerWriteErrMu.Lock()
-    directServerWriteErr += 1
-    directServerWriteErrMu.Unlock()
+    directServerWriteErr.Lock()
+    directServerWriteErr.n++
+    directServerWriteErr.Unlock()
 }
 
 func numDirectServerWriteErr()(uint64) {
-    return directServerWriteErr
+    return directServerWriteErr.n
 }
 
 func setupStats() {
