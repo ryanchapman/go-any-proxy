@@ -1,4 +1,4 @@
 language: go
 
 script:
- - cd $TRAVIS_BUILD_DIR && go test -v
+ - go test -v ./...
