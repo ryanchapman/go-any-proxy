@@ -357,6 +357,13 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var proxyConn net.Conn
     var err error
     var success bool = false
+    var host string
+    var headerXFF string = ""
+
+    host, _, err = net.SplitHostPort(clientConn.RemoteAddr().String())
+    if err == nil {
+        headerXFF = fmt.Sprintf("X-Forwarded-For: %s\r\n", host)
+    }
 
     for _, proxySpec := range gProxyServers {
         proxyConn, err = dial(proxySpec)
@@ -365,7 +372,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             continue
         }
         log.Debugf("PROXY|%v->%v->%s:%d|Connected to proxy\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
-        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0\r\n\r\n", ipv4, port)
+        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0\r\n%s\r\n", ipv4, port, headerXFF)
         log.Debugf("PROXY|%v->%v->%s:%d|Sending to proxy: %s\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(connectString))
         fmt.Fprintf(proxyConn, connectString)
         status, err := bufio.NewReader(proxyConn).ReadString('\n')
