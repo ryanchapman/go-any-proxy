@@ -62,6 +62,7 @@ const SO_ORIGINAL_DST = 80
 const DEFAULTLOG = "/var/log/any_proxy.log"
 const STATSFILE  = "/var/log/any_proxy.stats"
 
+
 var gListenAddrPort string
 var gProxyServerSpec string
 var gDirects string
@@ -71,12 +72,8 @@ var gLogfile string
 var gCpuProfile string
 var gMemProfile string
 
-func versionString() (v string) {
-    buildNum := strings.ToUpper(strconv.FormatInt(BUILDTIMESTAMP, 36))
-    buildDate := time.Unix(BUILDTIMESTAMP, 0).Format(time.UnixDate)
-    v = fmt.Sprintf("any_proxy %s (build %v, %v by %v@%v)", VERSION, buildNum, buildDate, BUILDUSER, BUILDHOST)
-    return
-}
+type directorFunc func(string) bool
+var director func(string) (bool, int)
 
 func init() {
     flag.Usage = func() {
@@ -94,7 +91,7 @@ func init() {
         fmt.Fprintf(os.Stderr, "                   first proxy, then the second is tried and so on.\n\n")
         fmt.Fprintf(os.Stderr, "Optional\n")
         fmt.Fprintf(os.Stderr, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
-        fmt.Fprintf(os.Stderr, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
+        fmt.Fprintf(os.Stderr, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2, 172.22.0.0/16)\n")
         fmt.Fprintf(os.Stderr, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
         fmt.Fprintf(os.Stderr, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
         fmt.Fprintf(os.Stderr, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
@@ -125,6 +122,69 @@ func init() {
     flag.StringVar(&gCpuProfile,      "c", "", "Write cpu profile to file")
     flag.StringVar(&gMemProfile,      "m", "", "Write mem profile to file")
     flag.IntVar(   &gVerbosity,       "v", 0,        "Control level of logging. v=1 results in debugging info printed to the log.\n")
+}
+
+func versionString() (v string) {
+    buildNum := strings.ToUpper(strconv.FormatInt(BUILDTIMESTAMP, 36))
+    buildDate := time.Unix(BUILDTIMESTAMP, 0).Format(time.UnixDate)
+    v = fmt.Sprintf("any_proxy %s (build %v, %v by %v@%v)", VERSION, buildNum, buildDate, BUILDUSER, BUILDHOST)
+    return
+}
+
+func buildDirectors(gdirects string) ([]directorFunc) {
+    // Generates a list of directorFuncs that are have "cached" values within
+    // the scope of the functions.  
+    dstrings := strings.Split(gdirects, ",")
+    directors := make([]directorFunc, len(dstrings))
+    var dfunc directorFunc
+
+    for idx,dstring := range dstrings {
+        if strings.Contains(dstring, "/") {
+
+            cidrIp, cidrIpNet, err := net.ParseCIDR(dstring)
+            if err != nil {
+                panic(fmt.Sprintf("\nUnable to parse CIDR string : %s : %s\n", dstring, err))
+            }
+            dfunc = func(ip string) bool {
+                testIp := net.ParseIP(ip)
+                if cidrIp.Equal(testIp.Mask(cidrIpNet.Mask)) {
+                    return true
+                }
+                return false
+            }
+        } else {
+            ipstr := dstring
+            dfunc = func(ip string) bool {
+                if ip == ipstr {
+                    return true
+                }
+                return false
+            }
+        }
+        directors[idx] = dfunc
+
+    }
+    return directors
+}
+
+func getDirector(directors []directorFunc) func(string) (bool, int) {
+    // getDirector:
+    // Returns a function(directorFunc) that loops through internal held 
+    // directors evaluating each for possible matches.
+    // 
+    // directorFunc: 
+    // Loops through directors and returns the (true, idx) where the index is 
+    // the sequencial director that returned true. Else the function returns
+    // (false, 0) if there are no directors to handle the ip.
+    dFunc := func(ipStr string) (bool, int) {
+        for idx,dfunc := range directors {
+            if dfunc(ipStr) {
+                return true, idx
+            }
+        }
+        return false, 0
+    }
+    return dFunc
 }
 
 func setupProfiling() {
@@ -193,6 +253,9 @@ func main() {
     setupLogging()
     setupProfiling()
     setupStats()
+
+    dirFuncs := buildDirectors(gDirects)
+    director = getDirector(dirFuncs)
 
     checkProxies()
 
@@ -424,11 +487,10 @@ func handleConnection(clientConn *net.TCPConn) {
         log.Infof("handleConnection(): oops, clientConn returned from getOriginalDst() is nil")
         return
     }
-    for _, direct := range strings.Split(gDirects, ",") {
-        if ipv4 == direct {
+    // Evaluate for direct connection
+    if ok,_ := director(ipv4); ok {
             handleDirectConnection(clientConn, ipv4, port)
             return
-        }
     }
     handleProxyConnection(clientConn, ipv4, port)
 }
