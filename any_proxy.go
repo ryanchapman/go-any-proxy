@@ -188,7 +188,7 @@ func getDirector(directors []directorFunc) func(string) (bool, int) {
 }
 
 func setupProfiling() {
-    // Make sure we have enough time to write profile's to disk, even if user presses Ctrl-C
+    // Make sure we have enough time to write profiles to disk, even if user presses Ctrl-C
     if gMemProfile == "" || gCpuProfile == "" {
         return
     }
