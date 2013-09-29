@@ -447,7 +447,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             continue
         }
         if strings.Contains(status, "400") { // bad request
-            log.Debguf("PROXY|%v->%v->%s:%d|Status from proxy=400 (Bad Request)", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
+            log.Debugf("PROXY|%v->%v->%s:%d|Status from proxy=400 (Bad Request)", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
             log.Debugf("%v: Response from proxy=400", proxySpec)
             incrProxy400Responses()
             copy(clientConn, proxyConn, "client", "proxyserver")
