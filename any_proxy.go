@@ -257,6 +257,7 @@ func main() {
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
 
+    log.RedirectStreams()
     checkProxies()
 
     lnaddr, err := net.ResolveTCPAddr("tcp", gListenAddrPort)
