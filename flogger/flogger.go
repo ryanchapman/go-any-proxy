@@ -1,14 +1,10 @@
 package flogger
 
-///////////////////////////////////////////////////////////////////////////////
-// Originally Authored by https://github/zdannar. All rights given to 
-// https://github/rchapman for use in all future and current projects.
-///////////////////////////////////////////////////////////////////////////////
-
 import ( 
     "log"
     "os"
     "fmt"
+    "syscall"
 )
 
 func New(logLevel, logFormat int, levelMap map[int]string) *Flogger {
@@ -140,3 +136,8 @@ func (f *Flogger) Panic(args ...interface{}) {
    f.flog(PANIC, args...)
 }
 
+// Redirects stdout and stderr to log file 
+func (f *Flogger) RedirectStreams() {
+    syscall.Dup2(int(f.fd.Fd()), 1)
+    syscall.Dup2(int(f.fd.Fd()), 2)
+}

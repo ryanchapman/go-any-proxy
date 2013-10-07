@@ -93,3 +93,7 @@ func Fatal(args ...interface{}) {
 func Panic(args ...interface{}) {
    defLogr.Panic(args...)
 }
+
+func RedirectStreams() {
+   defLogr.RedirectStreams()
+}
