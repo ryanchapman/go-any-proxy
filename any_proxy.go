@@ -428,6 +428,11 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var host string
     var headerXFF string = ""
 
+    if clientConn == nil {
+        log.Debugf("handleProxyConnection(): oops, clientConn is nil!")
+        return
+    }
+
     host, _, err = net.SplitHostPort(clientConn.RemoteAddr().String())
     if err == nil {
         headerXFF = fmt.Sprintf("X-Forwarded-For: %s\r\n", host)
@@ -466,10 +471,6 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
         log.Debugf("PROXY|%v->%v->%s:%d|Proxied connection", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
         success = true
         break
-    }
-    if clientConn == nil {
-        log.Debugf("handleProxyConnection(): oops, clientConn is nil!")
-        return
     }
     if proxyConn == nil {
         log.Debugf("handleProxyConnection(): oops, proxyConn is nil!")
