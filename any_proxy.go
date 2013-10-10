@@ -62,6 +62,7 @@ const SO_ORIGINAL_DST = 80
 const DEFAULTLOG = "/var/log/any_proxy.log"
 const STATSFILE  = "/var/log/any_proxy.stats"
 
+
 var gListenAddrPort string
 var gProxyServerSpec string
 var gDirects string
@@ -71,12 +72,8 @@ var gLogfile string
 var gCpuProfile string
 var gMemProfile string
 
-func versionString() (v string) {
-    buildNum := strings.ToUpper(strconv.FormatInt(BUILDTIMESTAMP, 36))
-    buildDate := time.Unix(BUILDTIMESTAMP, 0).Format(time.UnixDate)
-    v = fmt.Sprintf("any_proxy %s (build %v, %v by %v@%v)", VERSION, buildNum, buildDate, BUILDUSER, BUILDHOST)
-    return
-}
+type directorFunc func(string) bool
+var director func(string) (bool, int)
 
 func init() {
     flag.Usage = func() {
@@ -125,6 +122,73 @@ func init() {
     flag.StringVar(&gCpuProfile,      "c", "", "Write cpu profile to file")
     flag.StringVar(&gMemProfile,      "m", "", "Write mem profile to file")
     flag.IntVar(   &gVerbosity,       "v", 0,        "Control level of logging. v=1 results in debugging info printed to the log.\n")
+
+    dirFuncs := buildDirectors(gDirects)
+    director = getDirector(dirFuncs)
+}
+
+func versionString() (v string) {
+    buildNum := strings.ToUpper(strconv.FormatInt(BUILDTIMESTAMP, 36))
+    buildDate := time.Unix(BUILDTIMESTAMP, 0).Format(time.UnixDate)
+    v = fmt.Sprintf("any_proxy %s (build %v, %v by %v@%v)", VERSION, buildNum, buildDate, BUILDUSER, BUILDHOST)
+    return
+}
+
+func buildDirectors(gDirects string) ([]directorFunc) {
+    // Generates a list of directorFuncs that are have "cached" values within
+    // the scope of the functions.  
+
+    dstrings := strings.Split(gDirects, ",")
+    directors := make([]directorFunc, len(dstrings))
+    var dfunc directorFunc
+
+    for idx,dstring := range dstrings {
+        if strings.Contains(dstring, "/") {
+
+            cidrIp, cidrIpNet, err := net.ParseCIDR(dstring)
+            if err != nil {
+                panic(fmt.Sprintf("\nUnable to parse CIDR string : %s : %s\n", dstring, err))
+            }
+            dfunc = func(ip string) bool {
+                testIp := net.ParseIP(ip)
+                if cidrIp.Equal(testIp.Mask(cidrIpNet.Mask)) {
+                    return true
+                }
+                return false
+            }
+        } else {
+            dfunc = func(ip string) bool {
+                if ip == dstring {
+                    return true
+                }
+                return false
+            }
+        }
+        directors[idx] = dfunc
+
+    }
+    return directors
+}
+
+func getDirector(directors []directorFunc) func(string) (bool, int) {
+    // getDirector:
+    // Returns a function(directorFunc) that loops through internal held 
+    // directors evaluating each for possible matches.
+    // 
+    // directorFunc: 
+    // Loops through directors and returns the (true, idx) where the index is 
+    // the sequencial director that returned true. Else the function returns
+    // (false, 0) if there are no directors to handle the ip.
+
+    dFunc := func(ipStr string) (bool, int) {
+        for idx,dfunc := range directors {
+            if dfunc(ipStr) {
+                return true, idx
+            }
+        }
+        return false, 0
+    }
+    return dFunc
 }
 
 func setupProfiling() {
@@ -194,6 +258,10 @@ func main() {
     setupProfiling()
     setupStats()
 
+    dirFuncs := buildDirectors(gDirects)
+    director = getDirector(dirFuncs)
+
+    log.RedirectStreams()
     checkProxies()
 
     lnaddr, err := net.ResolveTCPAddr("tcp", gListenAddrPort)
@@ -246,18 +314,18 @@ func checkProxies() {
 
 func copy(dst io.ReadWriteCloser, src io.ReadWriteCloser, dstname string, srcname string) {
     if dst == nil {
-        log.Infof("copy(): oops, dst is nil!")
+        log.Debugf("copy(): oops, dst is nil!")
         return
     }
     if src == nil {
-        log.Infof("copy(): oops, src is nil!")
+        log.Debugf("copy(): oops, src is nil!")
         return
     }
     _, err := io.Copy(dst, src)
     if err != nil {
         if operr, ok := err.(*net.OpError); ok {
             if srcname == "directserver" || srcname == "proxyserver" {
-                log.Infof("copy(): %s->%s: Op=%s, Net=%s, Addr=%v, Err=%v", srcname, dstname, operr.Op, operr.Net, operr.Addr, operr.Err)
+                log.Debugf("copy(): %s->%s: Op=%s, Net=%s, Addr=%v, Err=%v", srcname, dstname, operr.Op, operr.Net, operr.Addr, operr.Err)
             }
             if operr.Op == "read" {
                 if srcname == "proxyserver" {
@@ -304,7 +372,7 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
     addr, err :=  syscall.GetsockoptIPv6Mreq(int(clientConnFile.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
     log.Debugf("getOriginalDst(): SO_ORIGINAL_DST=%+v\n", addr)
     if err != nil {
-        log.Infof("GETORIGINALDST|%v->?->FAILEDTOBEDETERMINED|getsocketopt(SO_ORIGINAL_DST) failed: %v", srcipport, err)
+        log.Infof("GETORIGINALDST|%v->?->FAILEDTOBEDETERMINED|ERR: getsocketopt(SO_ORIGINAL_DST) failed: %v", srcipport, err)
         return
     }
     newConn, err := net.FileConn(clientConnFile)
@@ -347,7 +415,7 @@ func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
         log.Infof("DIRECT|%v->%v|Could not connect, giving up: %v", clientConn.RemoteAddr(), directConn.RemoteAddr(), err)
         return
     }
-    log.Infof("DIRECT|%v->%v|Connected to remote end", clientConn.RemoteAddr(), directConn.RemoteAddr())
+    log.Debugf("DIRECT|%v->%v|Connected to remote end", clientConn.RemoteAddr(), directConn.RemoteAddr())
     incrDirectConnections()
     go copy(clientConn, directConn, "client", "directserver")
     go copy(directConn, clientConn, "directserver", "client")
@@ -360,6 +428,11 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var host string
     var headerXFF string = ""
 
+    if clientConn == nil {
+        log.Debugf("handleProxyConnection(): oops, clientConn is nil!")
+        return
+    }
+
     host, _, err = net.SplitHostPort(clientConn.RemoteAddr().String())
     if err == nil {
         headerXFF = fmt.Sprintf("X-Forwarded-For: %s\r\n", host)
@@ -368,7 +441,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     for _, proxySpec := range gProxyServers {
         proxyConn, err = dial(proxySpec)
         if err != nil {
-            log.Infof("PROXY|%v->%v->%s:%d|Trying next proxy.", clientConn.RemoteAddr(), proxySpec, ipv4, port)
+            log.Debugf("PROXY|%v->%v->%s:%d|Trying next proxy.", clientConn.RemoteAddr(), proxySpec, ipv4, port)
             continue
         }
         log.Debugf("PROXY|%v->%v->%s:%d|Connected to proxy\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
@@ -383,8 +456,8 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             continue
         }
         if strings.Contains(status, "400") { // bad request
-            log.Infof("PROXY|%v->%v->%s:%d|Status from proxy=400 (Bad Request)", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
-            log.Infof("%v: Response from proxy=400", proxySpec)
+            log.Debugf("PROXY|%v->%v->%s:%d|Status from proxy=400 (Bad Request)", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
+            log.Debugf("%v: Response from proxy=400", proxySpec)
             incrProxy400Responses()
             copy(clientConn, proxyConn, "client", "proxyserver")
             return
@@ -395,16 +468,12 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             continue
         }
         incrProxy200Responses()
-        log.Infof("PROXY|%v->%v->%s:%d|Proxied connection", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
+        log.Debugf("PROXY|%v->%v->%s:%d|Proxied connection", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
         success = true
         break
     }
-    if clientConn == nil {
-        log.Infof("handleProxyConnection(): oops, clientConn is nil!")
-        return
-    }
     if proxyConn == nil {
-        log.Infof("handleProxyConnection(): oops, proxyConn is nil!")
+        log.Debugf("handleProxyConnection(): oops, proxyConn is nil!")
         return
     }
     if success == false {
@@ -421,14 +490,13 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
 func handleConnection(clientConn *net.TCPConn) {
     ipv4, port, clientConn := getOriginalDst(clientConn)
     if clientConn == nil {
-        log.Infof("handleConnection(): oops, clientConn returned from getOriginalDst() is nil")
+        log.Debugf("handleConnection(): oops, clientConn returned from getOriginalDst() is nil")
         return
     }
-    for _, direct := range strings.Split(gDirects, ",") {
-        if ipv4 == direct {
+    // Evaluate for direct connection
+    if ok,_ := director(ipv4); ok {
             handleDirectConnection(clientConn, ipv4, port)
             return
-        }
     }
     handleProxyConnection(clientConn, ipv4, port)
 }
