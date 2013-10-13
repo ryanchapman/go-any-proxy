@@ -3,7 +3,7 @@ Flogger
 
 ###SUMMARY
 
-Flogger privides a simple wrapper around go's base logging module to provide
+Flogger provides a simple wrapper around go's base logging module to provide
 logging levels.  Flogger provides the following features.
 
 * Logging levels capable of overloading output in desired language.
