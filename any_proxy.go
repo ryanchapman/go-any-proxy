@@ -313,6 +313,10 @@ func checkProxies() {
 }
 
 func copy(dst io.ReadWriteCloser, src io.ReadWriteCloser, dstname string, srcname string) {
+    fmt.Printf("enter copy: dst=%+v (%T) src=%+v (%T)\n", dst,dst,src,src)
+    if dst == nil {
+        fmt.Printf("DST is NIL\n")
+    }
     if dst == nil {
         log.Debugf("copy(): oops, dst is nil!")
         return
@@ -409,6 +413,10 @@ func dial(spec string) (*net.TCPConn, error) {
 }
 
 func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
+    if clientConn == nil {
+        log.Debugf("handleDirectConnection(): oops, clientConn is nil!")
+        return
+    }
     ipport := fmt.Sprintf("%s:%d", ipv4, port)
     directConn, err := dial(ipport)
     if err != nil {
@@ -488,11 +496,11 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
 }
 
 func handleConnection(clientConn *net.TCPConn) {
-    ipv4, port, clientConn := getOriginalDst(clientConn)
     if clientConn == nil {
         log.Debugf("handleConnection(): oops, clientConn returned from getOriginalDst() is nil")
         return
     }
+    ipv4, port, clientConn := getOriginalDst(clientConn)
     // Evaluate for direct connection
     if ok,_ := director(ipv4); ok {
             handleDirectConnection(clientConn, ipv4, port)
