@@ -413,6 +413,8 @@ func dial(spec string) (*net.TCPConn, error) {
 }
 
 func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
+    log.Debugf("Enter handleDirectConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
+
     if clientConn == nil {
         log.Debugf("handleDirectConnection(): oops, clientConn is nil!")
         return
@@ -435,6 +437,8 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var success bool = false
     var host string
     var headerXFF string = ""
+
+    log.Debugf("Enter handleProxyConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
 
     if clientConn == nil {
         log.Debugf("handleProxyConnection(): oops, clientConn is nil!")
@@ -496,6 +500,9 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
 }
 
 func handleConnection(clientConn *net.TCPConn) {
+
+    log.Debugf("Enter handleConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
+
     if clientConn == nil {
         log.Debugf("handleConnection(): oops, clientConn returned from getOriginalDst() is nil")
         return
