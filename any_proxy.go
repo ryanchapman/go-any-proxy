@@ -57,7 +57,7 @@ import (
     "time"
 )
 
-const VERSION = "1.0"
+const VERSION = "1.1"
 const SO_ORIGINAL_DST = 80
 const DEFAULTLOG = "/var/log/any_proxy.log"
 const STATSFILE  = "/var/log/any_proxy.stats"
