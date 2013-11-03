@@ -360,7 +360,22 @@ func copy(dst io.ReadWriteCloser, src io.ReadWriteCloser, dstname string, srcnam
 }
 
 func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPConn *net.TCPConn, err error) {
+    if clientConn == nil {
+        log.Debugf("copy(): oops, dst is nil!")
+        err = errors.New("ERR: clientConn is nil")
+        return
+    }
+
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("getOriginalDst(): oops, clientConn.fd is nil!")
+        err = errors.New("ERR: clientConn.fd is nil")
+        return
+    }
+
     srcipport := fmt.Sprintf("%v", clientConn.RemoteAddr())
+
     newTCPConn = nil
     // net.TCPConn.File() will cause the receiver's (clientConn) socket to be placed in blocking mode.
     // The workaround is to take the File returned by .File(), do getsockopt() to get the original 
@@ -421,12 +436,21 @@ func dial(spec string) (*net.TCPConn, error) {
 }
 
 func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
+    // TODO: remove
     log.Debugf("Enter handleDirectConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
 
     if clientConn == nil {
         log.Debugf("handleDirectConnection(): oops, clientConn is nil!")
         return
     }
+
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("handleDirectConnection(): oops, clientConn.fd is nil!")
+        return
+    }
+
     ipport := fmt.Sprintf("%s:%d", ipv4, port)
     directConn, err := dial(ipport)
     if err != nil {
@@ -446,6 +470,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var host string
     var headerXFF string = ""
 
+    // TODO: remove
     log.Debugf("Enter handleProxyConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
 
     if clientConn == nil {
@@ -453,7 +478,15 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
         return
     }
 
-    host, _, err = net.SplitHostPort(clientConn.RemoteAddr().String())
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("handleProxyConnect(): oops, clientConn.fd is nil!")
+        err = errors.New("ERR: clientConn.fd is nil")
+        return
+    }
+
+    host, _, err = net.SplitHostPort(remoteAddr.String())
     if err == nil {
         headerXFF = fmt.Sprintf("X-Forwarded-For: %s\r\n", host)
     }
@@ -509,12 +542,21 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
 
 func handleConnection(clientConn *net.TCPConn) {
 
+    // TODO: remove
     log.Debugf("Enter handleConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
 
     if clientConn == nil {
         log.Debugf("handleConnection(): oops, clientConn is nil")
         return
     }
+
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("handleConnection(): oops, clientConn.fd is nil!")
+        return
+    }
+
     ipv4, port, clientConn, err := getOriginalDst(clientConn)
     if err != nil {
         log.Infof("handleConnection(): can not handle this connection, error occurred in getting original destination ip address/port: %+v\n", err)
