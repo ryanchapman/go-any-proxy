@@ -42,6 +42,7 @@ package main
 
 import (
     "bufio"
+    "errors"
     "flag"
     "fmt"
     "io"
@@ -358,7 +359,7 @@ func copy(dst io.ReadWriteCloser, src io.ReadWriteCloser, dstname string, srcnam
     src.Close()
 }
 
-func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPConn *net.TCPConn) {
+func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPConn *net.TCPConn, err error) {
     srcipport := fmt.Sprintf("%v", clientConn.RemoteAddr())
     newTCPConn = nil
     // net.TCPConn.File() will cause the receiver's (clientConn) socket to be placed in blocking mode.
@@ -393,7 +394,9 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
         newTCPConn = newConn.(*net.TCPConn)
         clientConnFile.Close()
     } else {
-        log.Infof("GETORIGINALDST|%v->?->%v|ERR: newConn is not a *net.TCPConn, instead it is: %T (%v)", srcipport, addr, newConn, newConn)
+        errmsg := fmt.Sprintf("ERR: newConn is not a *net.TCPConn, instead it is: %T (%v)", newConn, newConn)
+        log.Infof("GETORIGINALDST|%v->?->%v|%s", srcipport, addr, errmsg)
+        err = errors.New(errmsg)
         return
     }
 
@@ -509,10 +512,14 @@ func handleConnection(clientConn *net.TCPConn) {
     log.Debugf("Enter handleConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
 
     if clientConn == nil {
-        log.Debugf("handleConnection(): oops, clientConn returned from getOriginalDst() is nil")
+        log.Debugf("handleConnection(): oops, clientConn is nil")
         return
     }
-    ipv4, port, clientConn := getOriginalDst(clientConn)
+    ipv4, port, clientConn, err := getOriginalDst(clientConn)
+    if err != nil {
+        log.Infof("handleConnection(): can not handle this connection, error occurred in getting original destination ip address/port: %+v\n", err)
+        return
+    }
     // Evaluate for direct connection
     if ok,_ := director(ipv4); ok {
             handleDirectConnection(clientConn, ipv4, port)
