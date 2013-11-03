@@ -22,11 +22,17 @@ func TestNilClientToHandleConnection(t *testing.T) {
 func TestNilClientToHandleDirectConnection(t *testing.T) {
     var ipv4 string = "1.2.3.4"
     var port uint16 = 8999
+    
+    // set up 
+    gDirects = "1.2.3.4"
+    dirFuncs := buildDirectors(gDirects)
+    director = getDirector(dirFuncs)
+    
     handleDirectConnection(nil, ipv4, port)
 }
 
 func TestNilClientToHandleProxyConnection(t *testing.T) {
-    var ipv4 string = "1.2.3.4"
+    var ipv4 string = "2.3.4.5"
     var port uint16 = 8999
     handleProxyConnection(nil, ipv4, port)     
 }
@@ -48,13 +54,19 @@ func TestEmptyFdToHandleConnection(t *testing.T) {
 func TestEmptyFdToHandleDirectConnection(t *testing.T) {
     var ipv4 string = "1.2.3.4"
     var port uint16 = 8999
+
+    // set up 
+    gDirects = "1.2.3.4"
+    dirFuncs := buildDirectors(gDirects)
+    director = getDirector(dirFuncs)
+
     var c1 *net.TCPConn
     c1 = &net.TCPConn{}
     handleDirectConnection(c1, ipv4, port)
 }
 
 func TestEmptyFdToHandleProxyConnection(t *testing.T) {
-    var ipv4 string = "1.2.3.4"
+    var ipv4 string = "2.3.4.5"
     var port uint16 = 8999
     var c1 *net.TCPConn
     c1 = &net.TCPConn{}
