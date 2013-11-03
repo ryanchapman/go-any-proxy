@@ -42,6 +42,7 @@ package main
 
 import (
     "bufio"
+    "errors"
     "flag"
     "fmt"
     "io"
@@ -102,6 +103,8 @@ func init() {
         fmt.Fprintf(os.Stderr, "Before starting any_proxy, be sure to change the number of available file handles to at least 65535\n")
         fmt.Fprintf(os.Stderr, "with \"ulimit -n 65535\"\n")
         fmt.Fprintf(os.Stderr, "Some other tunables that enable higher performance:\n")
+        fmt.Fprintf(os.Stderr, "  net.core.netdev_max_backlog = 2048\n")
+        fmt.Fprintf(os.Stderr, "  net.core.somaxconn = 1024\n")
         fmt.Fprintf(os.Stderr, "  net.core.rmem_default = 8388608\n")
         fmt.Fprintf(os.Stderr, "  net.core.rmem_max = 16777216\n")
         fmt.Fprintf(os.Stderr, "  net.core.wmem_max = 16777216\n")
@@ -109,19 +112,22 @@ func init() {
         fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_window_scaling = 1\n")
         fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_max_syn_backlog = 3240000\n")
         fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_max_tw_buckets = 1440000\n")
+        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_mem = 50576 64768 98152\n")
         fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_rmem = 4096 87380 16777216\n")
+        fmt.Fprintf(os.Stderr, "  NOTE: if you see syn flood warnings in your logs, you need to adjust tcp_max_syn_backlog, tcp_synack_retries and tcp_abort_on_overflow\n");
+        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_syncookies = 1\n")
         fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_wmem = 4096 65536 16777216\n")
         fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_congestion_control = cubic\n\n")
         fmt.Fprintf(os.Stderr, "To obtain statistics, send any_proxy signal SIGUSR1. Current stats will be printed to %v\n", STATSFILE)
         fmt.Fprintf(os.Stderr, "Report bugs to <ryan@rchapman.org>.\n") 
     }
-    flag.StringVar(&gListenAddrPort,  "l", "",  "Address and port to listen on")
-    flag.StringVar(&gProxyServerSpec, "p", "",       "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
-    flag.StringVar(&gDirects,         "d", "",       "IP addresses to go direct")
-    flag.StringVar(&gLogfile,         "f", "",       "Log file")
+    flag.StringVar(&gListenAddrPort,  "l", "", "Address and port to listen on")
+    flag.StringVar(&gProxyServerSpec, "p", "", "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
+    flag.StringVar(&gDirects,         "d", "", "IP addresses to go direct")
+    flag.StringVar(&gLogfile,         "f", "", "Log file")
     flag.StringVar(&gCpuProfile,      "c", "", "Write cpu profile to file")
     flag.StringVar(&gMemProfile,      "m", "", "Write mem profile to file")
-    flag.IntVar(   &gVerbosity,       "v", 0,        "Control level of logging. v=1 results in debugging info printed to the log.\n")
+    flag.IntVar(   &gVerbosity,       "v", 0,  "Control level of logging. v=1 results in debugging info printed to the log.\n")
 
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
@@ -353,8 +359,23 @@ func copy(dst io.ReadWriteCloser, src io.ReadWriteCloser, dstname string, srcnam
     src.Close()
 }
 
-func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPConn *net.TCPConn) {
+func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPConn *net.TCPConn, err error) {
+    if clientConn == nil {
+        log.Debugf("copy(): oops, dst is nil!")
+        err = errors.New("ERR: clientConn is nil")
+        return
+    }
+
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("getOriginalDst(): oops, clientConn.fd is nil!")
+        err = errors.New("ERR: clientConn.fd is nil")
+        return
+    }
+
     srcipport := fmt.Sprintf("%v", clientConn.RemoteAddr())
+
     newTCPConn = nil
     // net.TCPConn.File() will cause the receiver's (clientConn) socket to be placed in blocking mode.
     // The workaround is to take the File returned by .File(), do getsockopt() to get the original 
@@ -388,7 +409,9 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
         newTCPConn = newConn.(*net.TCPConn)
         clientConnFile.Close()
     } else {
-        log.Infof("GETORIGINALDST|%v->?->%v|ERR: newConn is not a *net.TCPConn, instead it is: %T (%v)", srcipport, addr, newConn, newConn)
+        errmsg := fmt.Sprintf("ERR: newConn is not a *net.TCPConn, instead it is: %T (%v)", newConn, newConn)
+        log.Infof("GETORIGINALDST|%v->?->%v|%s", srcipport, addr, errmsg)
+        err = errors.New(errmsg)
         return
     }
 
@@ -413,12 +436,21 @@ func dial(spec string) (*net.TCPConn, error) {
 }
 
 func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
+    // TODO: remove
     log.Debugf("Enter handleDirectConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
 
     if clientConn == nil {
         log.Debugf("handleDirectConnection(): oops, clientConn is nil!")
         return
     }
+
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("handleDirectConnection(): oops, clientConn.fd is nil!")
+        return
+    }
+
     ipport := fmt.Sprintf("%s:%d", ipv4, port)
     directConn, err := dial(ipport)
     if err != nil {
@@ -438,6 +470,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var host string
     var headerXFF string = ""
 
+    // TODO: remove
     log.Debugf("Enter handleProxyConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
 
     if clientConn == nil {
@@ -445,7 +478,15 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
         return
     }
 
-    host, _, err = net.SplitHostPort(clientConn.RemoteAddr().String())
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("handleProxyConnect(): oops, clientConn.fd is nil!")
+        err = errors.New("ERR: clientConn.fd is nil")
+        return
+    }
+
+    host, _, err = net.SplitHostPort(remoteAddr.String())
     if err == nil {
         headerXFF = fmt.Sprintf("X-Forwarded-For: %s\r\n", host)
     }
@@ -501,13 +542,26 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
 
 func handleConnection(clientConn *net.TCPConn) {
 
+    // TODO: remove
     log.Debugf("Enter handleConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
 
     if clientConn == nil {
-        log.Debugf("handleConnection(): oops, clientConn returned from getOriginalDst() is nil")
+        log.Debugf("handleConnection(): oops, clientConn is nil")
         return
     }
-    ipv4, port, clientConn := getOriginalDst(clientConn)
+
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("handleConnection(): oops, clientConn.fd is nil!")
+        return
+    }
+
+    ipv4, port, clientConn, err := getOriginalDst(clientConn)
+    if err != nil {
+        log.Infof("handleConnection(): can not handle this connection, error occurred in getting original destination ip address/port: %+v\n", err)
+        return
+    }
     // Evaluate for direct connection
     if ok,_ := director(ipv4); ok {
             handleDirectConnection(clientConn, ipv4, port)

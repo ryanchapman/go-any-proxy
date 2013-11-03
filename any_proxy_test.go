@@ -11,24 +11,54 @@ import (
 //    copy(nil, nil, dstname, srcname)
 //}
 
-func TestNilClient(t *testing.T) {
+func TestNilClientToGetOriginalDst(t *testing.T) {
+    getOriginalDst(nil)
+}
+
+func TestNilClientToHandleConnection(t *testing.T) {
+    handleConnection(nil)
+}
+
+func TestNilClientToHandleDirectConnection(t *testing.T) {
     var ipv4 string = "1.2.3.4"
     var port uint16 = 8999
-//    handleConnection(nil)
-//    handleDirectConnection(nil, ipv4, port)     
-//    handleProxyConnection(nil, ipv4, port)     
-    // create a conn, close it, then pass to handler funcs to make sure they can handle closed conn's appropriately
-//    addr, err := net.ResolveTCPAddr("tcp", "www.google.com:80")
-//    if err != nil {
-//        t.Fatalf("Could not resolve www.google.com")
-//    }
+    handleDirectConnection(nil, ipv4, port)
+}
+
+func TestNilClientToHandleProxyConnection(t *testing.T) {
+    var ipv4 string = "1.2.3.4"
+    var port uint16 = 8999
+    handleProxyConnection(nil, ipv4, port)     
+}
+
+// when a &net.TCPConn{} is created, the underlying fd is set to nil. 
+// make sure we can handle this situation without a panic (it has occurred before)
+func TestEmptyFdToGetOriginalDst(t *testing.T) {
     var c1 *net.TCPConn
-    c1 = nil
-//    c1, err = net.DialTCP("tcp", nil, addr)
-//    if err != nil {
-//        t.Fatalf("Could not connect to www.google.com on port 80")
-//    }
-//    handleConnection(c1)
-//    handleDirectConnection(c1, ipv4, port)
+    c1 = &net.TCPConn{}
+    getOriginalDst(c1)
+}
+
+func TestEmptyFdToHandleConnection(t *testing.T) {
+    var c1 *net.TCPConn
+    c1 = &net.TCPConn{}
+    handleConnection(c1)
+}
+
+func TestEmptyFdToHandleDirectConnection(t *testing.T) {
+    var ipv4 string = "1.2.3.4"
+    var port uint16 = 8999
+    var c1 *net.TCPConn
+    c1 = &net.TCPConn{}
+    handleDirectConnection(c1, ipv4, port)
+}
+
+func TestEmptyFdToHandleProxyConnection(t *testing.T) {
+    var ipv4 string = "1.2.3.4"
+    var port uint16 = 8999
+    var c1 *net.TCPConn
+    c1 = &net.TCPConn{}
     handleProxyConnection(c1, ipv4, port)
 }
+
+
