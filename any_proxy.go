@@ -298,7 +298,7 @@ func checkProxies() {
     gProxyServers = strings.Split(gProxyServerSpec, ",")
     // make sure proxies resolve and are listening on specified port
     for i, proxySpec := range gProxyServers {
-        conn, err := net.Dial("tcp", proxySpec)
+        conn, err := dial(proxySpec)
         if err != nil {
             log.Infof("Test connection to %v: failed. Removing from proxy server list\n", proxySpec)
             a := gProxyServers[:i]
@@ -319,10 +319,6 @@ func checkProxies() {
 }
 
 func copy(dst io.ReadWriteCloser, src io.ReadWriteCloser, dstname string, srcname string) {
-    fmt.Printf("enter copy: dst=%+v (%T) src=%+v (%T)\n", dst,dst,src,src)
-    if dst == nil {
-        fmt.Printf("DST is NIL\n")
-    }
     if dst == nil {
         log.Debugf("copy(): oops, dst is nil!")
         return
@@ -425,14 +421,29 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
 }
 
 func dial(spec string) (*net.TCPConn, error) {
-    conn, err := net.Dial("tcp", spec)
+    host, port, err := net.SplitHostPort(spec)
     if err != nil {
-        log.Infof("dial(): ERR: could not connect to %v: %v", spec, err)
+        log.Infof("dial(): ERR: could not extract host and port from spec %v: %v", spec, err)
+        return nil, err
     }
-    if _, ok := conn.(*net.TCPConn); ok {
-        return conn.(*net.TCPConn), err
+    remoteAddr, err := net.ResolveIPAddr("ip", host)
+    if err != nil {
+        log.Infof("dial(): ERR: could not resolve %v: %v", host, err)
+        return nil, err
     }
-    return nil, err
+    portInt, err := strconv.Atoi(port)
+    if err != nil {
+        log.Infof("dial(): ERR: could not convert network port from string \"%s\" to integer: %v", port, err)
+        return nil, err
+    }
+    remoteAddrAndPort := &net.TCPAddr{IP: remoteAddr.IP, Port: portInt}
+    var localAddr *net.TCPAddr
+    localAddr = nil
+    conn, err := net.DialTCP("tcp", localAddr, remoteAddrAndPort)
+    if err != nil {
+        log.Infof("dial(): ERR: could not connect to %v:%v: %v", remoteAddrAndPort.IP, remoteAddrAndPort.Port, err)
+    }
+    return conn, err
 }
 
 func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
