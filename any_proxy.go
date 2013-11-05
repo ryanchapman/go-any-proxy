@@ -146,9 +146,11 @@ func buildDirectors(gDirects string) ([]directorFunc) {
 
     dstrings := strings.Split(gDirects, ",")
     directors := make([]directorFunc, len(dstrings))
-    var dfunc directorFunc
 
-    for idx,dstring := range dstrings {
+    for idx,dstrOrig := range dstrings {
+        dstring := dstrOrig
+        var dfunc directorFunc
+        log.Debugf("ZEBUG : Building director for %s", dstring)
         if strings.Contains(dstring, "/") {
 
             cidrIp, cidrIpNet, err := net.ParseCIDR(dstring)
@@ -162,17 +164,20 @@ func buildDirectors(gDirects string) ([]directorFunc) {
                 }
                 return false
             }
+            directors[idx] = dfunc
         } else {
             dfunc = func(ip string) bool {
+                log.Debugf("ZEBUG : Evaluating NON CIDR director : ip=%s : dstring=%s", ip, dstring)
                 if ip == dstring {
                     return true
                 }
                 return false
             }
+            directors[idx] = dfunc
         }
-        directors[idx] = dfunc
 
     }
+    log.Debugf("ZEBUG : Showing directors : %+v", directors)
     return directors
 }
 
@@ -574,6 +579,7 @@ func handleConnection(clientConn *net.TCPConn) {
         return
     }
     // Evaluate for direct connection
+    log.Debugf("ZEBUG : ipv4 is %s, %+v", ipv4, ipv4)
     if ok,_ := director(ipv4); ok {
             handleDirectConnection(clientConn, ipv4, port)
             return
