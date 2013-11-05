@@ -146,9 +146,10 @@ func buildDirectors(gDirects string) ([]directorFunc) {
 
     dstrings := strings.Split(gDirects, ",")
     directors := make([]directorFunc, len(dstrings))
-    var dfunc directorFunc
 
-    for idx,dstring := range dstrings {
+    for idx,dstrOrig := range dstrings {
+        dstring := dstrOrig
+        var dfunc directorFunc
         if strings.Contains(dstring, "/") {
 
             cidrIp, cidrIpNet, err := net.ParseCIDR(dstring)
@@ -162,6 +163,7 @@ func buildDirectors(gDirects string) ([]directorFunc) {
                 }
                 return false
             }
+            directors[idx] = dfunc
         } else {
             dfunc = func(ip string) bool {
                 if ip == dstring {
@@ -169,8 +171,8 @@ func buildDirectors(gDirects string) ([]directorFunc) {
                 }
                 return false
             }
+            directors[idx] = dfunc
         }
-        directors[idx] = dfunc
 
     }
     return directors
