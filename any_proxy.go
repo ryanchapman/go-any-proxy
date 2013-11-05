@@ -166,7 +166,6 @@ func buildDirectors(gDirects string) ([]directorFunc) {
             directors[idx] = dfunc
         } else {
             dfunc = func(ip string) bool {
-                log.Debugf("ZEBUG : Evaluating NON CIDR director : ip=%s : dstring=%s", ip, dstring)
                 if ip == dstring {
                     return true
                 }
