@@ -78,7 +78,7 @@ func TestEmptyFdToHandleProxyConnection(t *testing.T) {
 // Should catch issue #11 if it occurs again 
 // (shared memory issue related to the -d cmd line option)
 func TestDirectConnectionFlags(t *testing.T) {
-    // set up 
+    // Test with the equivalent of a single IP address in the -d arg: -d 1.2.3.4
     gDirects = "1.2.3.4"
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
@@ -94,6 +94,50 @@ func TestDirectConnectionFlags(t *testing.T) {
     wentDirect,_ = director(ipv4)
     if wentDirect == true {
         t.Errorf("The IP address %s should have been sent to an upstream proxy, but instead was sent directly", ipv4)
+    }
+
+
+    // Test with the equivalent of a multiple IP addresses in the -d arg: -d 1.2.3.4,2.3.4.5
+    gDirects = "1.2.3.4,2.3.4.5"
+    dirFuncs = buildDirectors(gDirects)
+    director = getDirector(dirFuncs)
+    
+    addrsToTest := []string{"1.2.3.4", "2.3.4.5"}
+    for _,ipv4 = range addrsToTest {
+        wentDirect,_ := director(ipv4)
+        if wentDirect == false {
+            t.Errorf("The IP address %s should have been sent direct, but instead was proxied", ipv4)
+        }
+    }
+
+    // now make sure an address that should be proxied still works
+    ipv4 = "4.5.6.7"
+    wentDirect,_ = director(ipv4)
+    if wentDirect == true {
+        t.Errorf("The IP address %s should have been sent to an upstream proxy, but instead was sent directly", ipv4)
+    }
+
+
+    // Test with the equivalent of multiple IP address specs in the -d arg: -d 1.2.3.0/24,2.3.4.0/25,4.4.4.4"
+    gDirects = "1.2.3.0/24,2.3.4.0/25,4.4.4.4"
+    dirFuncs = buildDirectors(gDirects)
+    director = getDirector(dirFuncs)
+    
+    addrsToTest = []string{"1.2.3.4", "1.2.3.254", "2.3.4.5", "4.4.4.4"}
+    for _,ipv4 = range addrsToTest {
+        wentDirect,_ := director(ipv4)
+        if wentDirect == false {
+            t.Errorf("The IP address %s should have been sent direct, but instead was proxied", ipv4)
+        }
+    }
+
+    // now make sure an address that should be proxied still works
+    addrsToTest = []string{"4.5.6.7", "2.3.4.254"}
+    for _,ipv4 = range addrsToTest {
+        wentDirect,_ = director(ipv4)
+        if wentDirect == true {
+            t.Errorf("The IP address %s should have been sent to an upstream proxy, but instead was sent directly", ipv4)
+        }
     }
 }
 
