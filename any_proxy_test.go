@@ -74,3 +74,28 @@ func TestEmptyFdToHandleProxyConnection(t *testing.T) {
 }
 
 
+// Test if direct connections are working
+// Should catch issue #11 if it occurs again 
+// (shared memory issue related to the -d cmd line option)
+func TestDirectConnectionFlags(t *testing.T) {
+    // set up 
+    gDirects = "1.2.3.4"
+    dirFuncs := buildDirectors(gDirects)
+    director = getDirector(dirFuncs)
+    
+    ipv4 := "1.2.3.4"
+    wentDirect,_ := director(ipv4)
+    if wentDirect == false {
+        t.Errorf("The IP address %s should have been sent direct, but instead was proxied", ipv4)
+    }
+
+    // now make sure an address that should be proxied still works
+    ipv4 = "4.5.6.7"
+    wentDirect,_ = director(ipv4)
+    if wentDirect == true {
+        t.Errorf("The IP address %s should have been sent to an upstream proxy, but instead was sent directly", ipv4)
+    }
+}
+
+
+
