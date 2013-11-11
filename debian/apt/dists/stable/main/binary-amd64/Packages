@@ -1,0 +1,19 @@
+Package: any-proxy
+Version: 1.1-MW0FY2
+Architecture: amd64
+Maintainer: Ryan A. Chapman <ryan@rchapman.org>
+Installed-Size: 2068
+Depends: libc6
+Filename: pool/main/any-proxy_1.1-MW0FY2_amd64.deb
+Size: 547476
+MD5sum: 56ede2b2d5f19ac3e785f95b2093cab5
+SHA1: 7327078b7758dc50bf8f800952fb53d9fb90541c
+SHA256: cccbf9dba170bf345a8de05404a7bbd272eaa0ae893dd03481bfe4d03336620b
+Section: extra
+Priority: Priority
+Description: A transparent proxy
+ any_proxy is a program that transparently proxies any tcp connection to an upstream proxy
+ without requiring end users to configure a proxy server on their host.
+ You need to have an upstream proxy, such as squid, that allows CONNECT.
+ See http://github.com/ryanchapman/go-any-proxy for more information.
+
