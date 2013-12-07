@@ -36,9 +36,9 @@ start () {
 	# if we are not on a vyatta, need to add WEBPROXY to PREROUTING rule
 	uname -a | grep vyatta &>/dev/null
 	if [[ $? != 0 ]]; then
-		/sbin/iptables -t nat -L PREROUTING 1 | egrep '^ANYPROXY' &>/dev/null || /sbin/iptables -t nat -I PREROUTING 1 -j WEBPROXY
+		/sbin/iptables -t nat -L PREROUTING 1 | egrep '^ANYPROXY' &>/dev/null || /sbin/iptables -t nat -I PREROUTING 1 -j ANYPROXY
 	else
-		/sbin/iptables -t nat -L VYATTA_PRE_DNAT_HOOK 1 | egrep '^ANYPROXY' &>/dev/null || /sbin/iptables -t nat -I VYATTA_PRE_DNAT_HOOK 1  -j WEBPROXY
+		/sbin/iptables -t nat -L VYATTA_PRE_DNAT_HOOK 1 | egrep '^ANYPROXY' &>/dev/null || /sbin/iptables -t nat -I VYATTA_PRE_DNAT_HOOK 1  -j ANYPROXY
 	fi
 	if [[ "$NET_TO_PROXY" != "" ]]; then
 		S_ARG="-s $NET_TO_PROXY"
