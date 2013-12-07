@@ -78,48 +78,48 @@ var director func(string) (bool, int)
 
 func init() {
     flag.Usage = func() {
-        fmt.Fprintf(os.Stderr, "%s\n\n", versionString())
-        fmt.Fprintf(os.Stderr, "usage: %s -l listenaddress -p proxies [-d directs] [-v=N] [-f file] [-c file] [-m file]\n", os.Args[0])
-        fmt.Fprintf(os.Stderr, "       Proxies any tcp or udp port transparently using Linux netfilter\n\n")
-        fmt.Fprintf(os.Stderr, "Mandatory\n")
-        fmt.Fprintf(os.Stderr, "  -l=ADDRPORT      Address and port to listen on (e.g., :3128 or 127.0.0.1:3128)\n")
-        fmt.Fprintf(os.Stderr, "  -p=PROXIES       Address and ports of upstream proxy servers to use\n")
-        fmt.Fprintf(os.Stderr, "                   Multiple address/ports can be specified by separating with commas\n")
-        fmt.Fprintf(os.Stderr, "                   (e.g., 10.1.1.1:80,10.2.2.2:3128 would try to proxy requests to a\n")
-        fmt.Fprintf(os.Stderr, "                    server listening on port 80 at 10.1.1.1 and if that failed, would\n")
-        fmt.Fprintf(os.Stderr, "                    then try port 3128 at 10.2.2.2)\n")
-        fmt.Fprintf(os.Stderr, "                   Note that requests are not load balanced. If a request fails to the\n")
-        fmt.Fprintf(os.Stderr, "                   first proxy, then the second is tried and so on.\n\n")
-        fmt.Fprintf(os.Stderr, "Optional\n")
-        fmt.Fprintf(os.Stderr, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
-        fmt.Fprintf(os.Stderr, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
-        fmt.Fprintf(os.Stderr, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
-        fmt.Fprintf(os.Stderr, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
-        fmt.Fprintf(os.Stderr, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
-        fmt.Fprintf(os.Stderr, "                   standard pacakge, can be used to interpret the results. You can invoke pprof\n")
-        fmt.Fprintf(os.Stderr, "                   with \"go tool pprof\"\n")
-        fmt.Fprintf(os.Stderr, "  -m=FILE          Write a memory profile to FILE. This file can also be interpreted by golang's pprof\n\n")
-        fmt.Fprintf(os.Stderr, "any_proxy should be able to achieve 2000 connections/sec with logging on, 10k with logging off (-f=/dev/null).\n")
-        fmt.Fprintf(os.Stderr, "Before starting any_proxy, be sure to change the number of available file handles to at least 65535\n")
-        fmt.Fprintf(os.Stderr, "with \"ulimit -n 65535\"\n")
-        fmt.Fprintf(os.Stderr, "Some other tunables that enable higher performance:\n")
-        fmt.Fprintf(os.Stderr, "  net.core.netdev_max_backlog = 2048\n")
-        fmt.Fprintf(os.Stderr, "  net.core.somaxconn = 1024\n")
-        fmt.Fprintf(os.Stderr, "  net.core.rmem_default = 8388608\n")
-        fmt.Fprintf(os.Stderr, "  net.core.rmem_max = 16777216\n")
-        fmt.Fprintf(os.Stderr, "  net.core.wmem_max = 16777216\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.ip_local_port_range = 2000 65000\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_window_scaling = 1\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_max_syn_backlog = 3240000\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_max_tw_buckets = 1440000\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_mem = 50576 64768 98152\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_rmem = 4096 87380 16777216\n")
-        fmt.Fprintf(os.Stderr, "  NOTE: if you see syn flood warnings in your logs, you need to adjust tcp_max_syn_backlog, tcp_synack_retries and tcp_abort_on_overflow\n");
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_syncookies = 1\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_wmem = 4096 65536 16777216\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_congestion_control = cubic\n\n")
-        fmt.Fprintf(os.Stderr, "To obtain statistics, send any_proxy signal SIGUSR1. Current stats will be printed to %v\n", STATSFILE)
-        fmt.Fprintf(os.Stderr, "Report bugs to <ryan@rchapman.org>.\n") 
+        fmt.Fprintf(os.Stdout, "%s\n\n", versionString())
+        fmt.Fprintf(os.Stdout, "usage: %s -l listenaddress -p proxies [-d directs] [-v=N] [-f file] [-c file] [-m file]\n", os.Args[0])
+        fmt.Fprintf(os.Stdout, "       Proxies any tcp or udp port transparently using Linux netfilter\n\n")
+        fmt.Fprintf(os.Stdout, "Mandatory\n")
+        fmt.Fprintf(os.Stdout, "  -l=ADDRPORT      Address and port to listen on (e.g., :3128 or 127.0.0.1:3128)\n")
+        fmt.Fprintf(os.Stdout, "  -p=PROXIES       Address and ports of upstream proxy servers to use\n")
+        fmt.Fprintf(os.Stdout, "                   Multiple address/ports can be specified by separating with commas\n")
+        fmt.Fprintf(os.Stdout, "                   (e.g., 10.1.1.1:80,10.2.2.2:3128 would try to proxy requests to a\n")
+        fmt.Fprintf(os.Stdout, "                    server listening on port 80 at 10.1.1.1 and if that failed, would\n")
+        fmt.Fprintf(os.Stdout, "                    then try port 3128 at 10.2.2.2)\n")
+        fmt.Fprintf(os.Stdout, "                   Note that requests are not load balanced. If a request fails to the\n")
+        fmt.Fprintf(os.Stdout, "                   first proxy, then the second is tried and so on.\n\n")
+        fmt.Fprintf(os.Stdout, "Optional\n")
+        fmt.Fprintf(os.Stdout, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
+        fmt.Fprintf(os.Stdout, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
+        fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
+        fmt.Fprintf(os.Stdout, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
+        fmt.Fprintf(os.Stdout, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
+        fmt.Fprintf(os.Stdout, "                   standard pacakge, can be used to interpret the results. You can invoke pprof\n")
+        fmt.Fprintf(os.Stdout, "                   with \"go tool pprof\"\n")
+        fmt.Fprintf(os.Stdout, "  -m=FILE          Write a memory profile to FILE. This file can also be interpreted by golang's pprof\n\n")
+        fmt.Fprintf(os.Stdout, "any_proxy should be able to achieve 2000 connections/sec with logging on, 10k with logging off (-f=/dev/null).\n")
+        fmt.Fprintf(os.Stdout, "Before starting any_proxy, be sure to change the number of available file handles to at least 65535\n")
+        fmt.Fprintf(os.Stdout, "with \"ulimit -n 65535\"\n")
+        fmt.Fprintf(os.Stdout, "Some other tunables that enable higher performance:\n")
+        fmt.Fprintf(os.Stdout, "  net.core.netdev_max_backlog = 2048\n")
+        fmt.Fprintf(os.Stdout, "  net.core.somaxconn = 1024\n")
+        fmt.Fprintf(os.Stdout, "  net.core.rmem_default = 8388608\n")
+        fmt.Fprintf(os.Stdout, "  net.core.rmem_max = 16777216\n")
+        fmt.Fprintf(os.Stdout, "  net.core.wmem_max = 16777216\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.ip_local_port_range = 2000 65000\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_window_scaling = 1\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_max_syn_backlog = 3240000\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_max_tw_buckets = 1440000\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_mem = 50576 64768 98152\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_rmem = 4096 87380 16777216\n")
+        fmt.Fprintf(os.Stdout, "  NOTE: if you see syn flood warnings in your logs, you need to adjust tcp_max_syn_backlog, tcp_synack_retries and tcp_abort_on_overflow\n");
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_syncookies = 1\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_wmem = 4096 65536 16777216\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_congestion_control = cubic\n\n")
+        fmt.Fprintf(os.Stdout, "To obtain statistics, send any_proxy signal SIGUSR1. Current stats will be printed to %v\n", STATSFILE)
+        fmt.Fprintf(os.Stdout, "Report bugs to <ryan@rchapman.org>.\n") 
     }
     flag.StringVar(&gListenAddrPort,  "l", "", "Address and port to listen on")
     flag.StringVar(&gProxyServerSpec, "p", "", "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
@@ -146,9 +146,10 @@ func buildDirectors(gDirects string) ([]directorFunc) {
 
     dstrings := strings.Split(gDirects, ",")
     directors := make([]directorFunc, len(dstrings))
-    var dfunc directorFunc
 
-    for idx,dstring := range dstrings {
+    for idx,dstrOrig := range dstrings {
+        dstring := dstrOrig
+        var dfunc directorFunc
         if strings.Contains(dstring, "/") {
 
             cidrIp, cidrIpNet, err := net.ParseCIDR(dstring)
@@ -162,6 +163,7 @@ func buildDirectors(gDirects string) ([]directorFunc) {
                 }
                 return false
             }
+            directors[idx] = dfunc
         } else {
             dfunc = func(ip string) bool {
                 if ip == dstring {
@@ -169,8 +171,8 @@ func buildDirectors(gDirects string) ([]directorFunc) {
                 }
                 return false
             }
+            directors[idx] = dfunc
         }
-        directors[idx] = dfunc
 
     }
     return directors
@@ -298,7 +300,7 @@ func checkProxies() {
     gProxyServers = strings.Split(gProxyServerSpec, ",")
     // make sure proxies resolve and are listening on specified port
     for i, proxySpec := range gProxyServers {
-        conn, err := net.Dial("tcp", proxySpec)
+        conn, err := dial(proxySpec)
         if err != nil {
             log.Infof("Test connection to %v: failed. Removing from proxy server list\n", proxySpec)
             a := gProxyServers[:i]
@@ -319,10 +321,6 @@ func checkProxies() {
 }
 
 func copy(dst io.ReadWriteCloser, src io.ReadWriteCloser, dstname string, srcname string) {
-    fmt.Printf("enter copy: dst=%+v (%T) src=%+v (%T)\n", dst,dst,src,src)
-    if dst == nil {
-        fmt.Printf("DST is NIL\n")
-    }
     if dst == nil {
         log.Debugf("copy(): oops, dst is nil!")
         return
@@ -425,14 +423,29 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
 }
 
 func dial(spec string) (*net.TCPConn, error) {
-    conn, err := net.Dial("tcp", spec)
+    host, port, err := net.SplitHostPort(spec)
     if err != nil {
-        log.Infof("dial(): ERR: could not connect to %v: %v", spec, err)
+        log.Infof("dial(): ERR: could not extract host and port from spec %v: %v", spec, err)
+        return nil, err
     }
-    if _, ok := conn.(*net.TCPConn); ok {
-        return conn.(*net.TCPConn), err
+    remoteAddr, err := net.ResolveIPAddr("ip", host)
+    if err != nil {
+        log.Infof("dial(): ERR: could not resolve %v: %v", host, err)
+        return nil, err
     }
-    return nil, err
+    portInt, err := strconv.Atoi(port)
+    if err != nil {
+        log.Infof("dial(): ERR: could not convert network port from string \"%s\" to integer: %v", port, err)
+        return nil, err
+    }
+    remoteAddrAndPort := &net.TCPAddr{IP: remoteAddr.IP, Port: portInt}
+    var localAddr *net.TCPAddr
+    localAddr = nil
+    conn, err := net.DialTCP("tcp", localAddr, remoteAddrAndPort)
+    if err != nil {
+        log.Infof("dial(): ERR: could not connect to %v:%v: %v", remoteAddrAndPort.IP, remoteAddrAndPort.Port, err)
+    }
+    return conn, err
 }
 
 func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {

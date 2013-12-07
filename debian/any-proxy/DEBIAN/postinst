@@ -1,0 +1,37 @@
+#!/bin/bash
+set -e
+
+. /usr/share/debconf/confmodule
+
+db_get any-proxy/listenport
+LISTENPORT="$RET"
+
+db_get any-proxy/portstoproxy
+PORTS_TO_PROXY="$RET"
+
+db_get any-proxy/proxyservers
+PROXYSERVERS="$RET"
+
+db_get any-proxy/directservers
+DIRECTSERVERS="$RET"
+
+echo "LISTENPORT=\"$LISTENPORT\"" >/etc/defaults/any_proxy
+echo "PORTS_TO_PROXY=\"$PORTS_TO_PROXY\"" >>/etc/defaults/any_proxy
+echo -n 'ANY_PROXY_ARGS=\"-l :$LISTENPORT' >>/etc/defaults/any_proxy
+
+if [[ "$PROXYSERVERS" != "" ]]; then
+    echo -n " -p $PROXYSERVERS" >>/etc/defaults/any_proxy
+fi
+
+if [[ "$DIRECTSERVERS" != "" ]]; then
+    echo -n " -d $DIRECTSERVERS" >>/etc/defaults/any_proxy
+fi
+
+echo "\"" >>/etc/defaults/any_proxy
+
+# register any_proxy
+update-rc.d any_proxy defaults 90 >/dev/null
+
+invoke-rc.d any_proxy start
+
+db_stop

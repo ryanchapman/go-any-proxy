@@ -1,0 +1,288 @@
+any-proxy (1.1-MW0FY2) UNRELEASED; urgency=low
+  commit ff022c016f09e31671a6d7348dbb1ea621bae8e6
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Nov 9 13:25:53 2013 -0700
+  
+      More unit tests for issue #11
+  
+  commit d5779717053a5c78d8ca4717a825d75f9236642b
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Nov 9 12:24:05 2013 -0700
+  
+      Add unit test for issue #11
+  
+  commit b8a42afd3f7388454f16ee7e0b0277a4a801c5b9
+  Merge: f0a85a0 c4a6196
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Tue Nov 5 15:40:50 2013 -0800
+  
+      Merge pull request #11 from zdannar/master
+      
+      Fixed shared memory issue between builds of go.
+  
+  commit c4a6196e7e4731c9dead820fc49041b9a0935d75
+  Author: Zack Dannar <zack.dannar@rightnow.com>
+  Date:   Tue Nov 5 16:38:27 2013 -0700
+  
+      Another debug statement
+  
+  commit 56ad843a4b53e02982c6e70d6f677d6462e55b6c
+  Author: Zack Dannar <zack.dannar@rightnow.com>
+  Date:   Tue Nov 5 16:37:25 2013 -0700
+  
+      Removed debugging statements
+  
+  commit 6cbaf27efa5e41fdceb598cf0ebd467f767c4108
+  Author: Zack Dannar <zack.dannar@rightnow.com>
+  Date:   Tue Nov 5 16:34:33 2013 -0700
+  
+      Fixed directories shared memory issue
+  
+  commit f0a85a066be44545738500075154a59f9cab6499
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Nov 3 23:00:55 2013 -0700
+  
+      Changed net.Dial() to net.DialTCP(). See issue #9 for more details
+  
+  commit a54c108b26081ae655fbd9bb61bfeab505b95da1
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Nov 3 04:14:02 2013 -0700
+  
+      Release version 1.1
+  
+  commit bdaab100fa7677451165f9301182163d35a866b5
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Nov 3 04:00:33 2013 -0700
+  
+      Handle nil net.TCPConn gracefully, meaning without generating a panic
+  
+  commit 0d613b7d5751240388f02780d922534f7105b5ee
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Nov 3 03:35:27 2013 -0700
+  
+      Add unit tests that should catch future issues where
+      net.TCPConn.fd is nil (still not sure why it sometimes is nil)
+  
+  commit 193298758a739fd860950d408f40ec1167d36c41
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Nov 3 01:55:23 2013 -0700
+  
+      Bubble up errors in finding original destination ip/port from getOriginalDst to handleConnection(), which is the entry point for the goroutine to handle a connection from a client
+  
+  commit 2581eb49f7caa8e049047f7f892df4ce5f9558db
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Nov 3 01:14:54 2013 -0700
+  
+      Minor update to tcp tunables
+  
+  commit cd409d36811a317fbb28111799f8127d40c50445
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Oct 27 22:36:09 2013 -0600
+  
+      Added logging for handle funcs
+  
+  commit 6287d79d6d77abaaeaf8d8e1d50e32268165e088
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Oct 13 21:56:21 2013 -0600
+  
+      Add unit tests in an attempt to prevent github issue #6 from occurring
+      again (clientConn is closed and program crashes on nil pointer)
+  
+  commit cc3b97f55f0319461fc57dbc4ba8e5837988568f
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Oct 13 21:34:08 2013 -0600
+  
+      Added copyright for Zack Dannar's flogger package
+  
+  commit aa3d9400ec4144f6944f4f2df354b3871475a436
+  Merge: 5b99d8e baa834c
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Oct 13 20:31:31 2013 -0700
+  
+      Merge pull request #7 from zdannar/master
+      
+      Added licence back in.
+  
+  commit baa834c36acb09d8fb8fe6130cc13783365b3d11
+  Author: Zack Dannar <zack.dannar@rightnow.com>
+  Date:   Sun Oct 13 17:48:28 2013 -0600
+  
+      Fixed spellingwq
+  
+  commit dbbe134a13fdf2f1a2d8c357f304bbd0dbb0eeaa
+  Author: Zack Dannar <zack.dannar@rightnow.com>
+  Date:   Sun Oct 13 17:46:23 2013 -0600
+  
+      Updated header format
+  
+  commit 964e7df4012b971c9a6a84a631248d48f61ad1e9
+  Author: Zack Dannar <zack.dannar@rightnow.com>
+  Date:   Sun Oct 13 17:42:46 2013 -0600
+  
+      Added readme
+  
+  commit 9efefc380a28ae7b53a87aee02cdde8a953c3df1
+  Author: Zack Dannar <zack.dannar@rightnow.com>
+  Date:   Sun Oct 13 16:45:51 2013 -0600
+  
+      Added licence back in.
+  
+  commit 5b99d8ef08b13e37fb537f36c9b734c8e26b9718
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Thu Oct 10 09:43:24 2013 -0600
+  
+      Check for closed clientConn earlier in the handleProxyConnection
+      function in order to prevent a crash:
+      
+      panic: runtime error: invalid memory address or nil pointer dereference
+      [signal 0xb code=0x1 addr=0x28 pc=0x40394d]
+      
+      goroutine 1550625 [running]:
+      main.handleProxyConnection(0xc20cbca950, 0xc20cc5b0a0, 0xc, 0x1bb)
+          /root/go-any-proxy/any_proxy.go:427 +0x7d
+      main.handleConnection(0xc20cbca950)
+          /root/go-any-proxy/any_proxy.go:496 +0xef
+      created by main.main
+          /root/go-any-proxy/any_proxy.go:283 +0x308
+  
+  commit 76e0bba872b97510e1cd7437f58f2d6aeaff1dfb
+  Merge: dc0f3e5 fcfd3c6
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Mon Oct 7 17:36:06 2013 -0600
+  
+      merge
+  
+  commit fcfd3c63c4cc00c16734cb6c2de7feffcce99c3e
+  Author: Zack Dannar <zack.dannar@rightnow.com>
+  Date:   Mon Oct 7 17:18:32 2013 -0600
+  
+      Added stream redrection
+  
+  commit dc0f3e5912fa38a32b2d9fee280941c07b40f632
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Sep 29 00:19:09 2013 -0600
+  
+      Fix syntax err
+  
+  commit 1bba4d959434d7492f68b674833d0b12992e59b2
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Fri Sep 27 11:22:39 2013 -0600
+  
+      Tone down the default logging
+  
+  commit 0d44baa1cec13732eceb7c0752b9924d0560a5eb
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Wed Sep 11 20:03:01 2013 -0600
+  
+      Update any_proxy.go
+  
+  commit 7b2de306d97848ccab0eaf485b9271e01236f839
+  Merge: 54846a5 2baada0
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Tue Sep 10 11:53:17 2013 -0700
+  
+      Merge pull request #2 from zdannar/master
+      
+      Added CIDR to direct routing directive
+  
+  commit 2baada0e30bdadd33bfea64a4b5d9aba746cd335
+  Author: Zack Dannar <zack.dannar@rightnow.com>
+  Date:   Tue Sep 10 12:34:58 2013 -0600
+  
+      Added CIDR to direct routing directive
+  
+  commit 54846a5cac5be02990bdbf07a9eefb6ebae2f5de
+  Merge: 1ab096d 4aafd4b
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Fri Aug 30 21:20:19 2013 -0700
+  
+      Merge pull request #1 from tmackay/master
+      
+      Added X-Forwarded-For header
+  
+  commit 4aafd4b0e9c3b836ae5ea7e07ca41b67bad1621a
+  Author: tmackay <tmackay@anartech.net>
+  Date:   Sat Aug 31 13:30:17 2013 +1000
+  
+      Added X-Forwarded-For header
+      
+      X-Forwarded-For added for use by parent Squid acls, logging etc.
+  
+  commit 1ab096dccdffe7dce6e4079766a33ee6c21f4f73
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sun Jun 2 16:45:06 2013 -0600
+  
+      Change stats to use embedded locks
+  
+  commit ec3d38040c696cc7f50208ea13045e18508f0e8d
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Jun 1 21:32:23 2013 -0600
+  
+      Add gitignore, fix comment that was referencing wrong ip address
+  
+  commit bc1d5e1aa6d19a546a4955d9d68ed3102084bb4c
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Jun 1 21:25:57 2013 -0600
+  
+      Add version test
+  
+  commit 6ee393be9a4ee60950db972390363db07f7c87b7
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Jun 1 21:01:54 2013 -0600
+  
+      Fix autoversioning
+  
+  commit 8dee9330dd16a41932f7dfefa8462adbcc8f6d9a
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Jun 1 20:46:48 2013 -0600
+  
+      Fix autoversioning when building on travis-ci.org
+  
+  commit 33cd8cb234f0075d96367a17a2604050fe7a0f40
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Jun 1 20:04:29 2013 -0600
+  
+      Fix build status image on github
+  
+  commit 7f1de9ccea591b803f70602a5b2404cd88dc17bb
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Jun 1 20:02:24 2013 -0600
+  
+      Fix travis test
+  
+  commit 1d41f3bd8156b82ce6e2f49097288b6860461671
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Jun 1 20:01:31 2013 -0600
+  
+      Fix travis test
+  
+  commit 4bc62f129febb372fc2aad5e95340a2272bca158
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Jun 1 19:54:09 2013 -0600
+  
+      Fix syntax
+  
+  commit cccbae9537e152851d77b1f65b18b06319912c9e
+  Author: Ryan A. Chapman <ryan@rchapman.org>
+  Date:   Sat Jun 1 19:51:27 2013 -0600
+  
+      Changed log import so that it will work with Travis-CI
+  
+  commit 89b774fa60103600090103b2eee0ab28a8935cdf
+  Author: Ryan Chapman <ryan.chapman@oracle.com>
+  Date:   Sat Jun 1 19:18:02 2013 -0600
+  
+      Add travis-ci.org testing
+  
+  commit 2db549e622c0987b166799050a86b61bd6bec9bd
+  Author: Ryan Chapman <ryan.chapman@oracle.com>
+  Date:   Sun May 12 19:13:44 2013 -0600
+  
+      Version 1.0
+  
+  commit 83a788f437481e0b83af1eb2eaba459fd396ee2a
+  Author: Ryan Chapman <ryan.chapman@oracle.com>
+  Date:   Thu May 9 16:53:25 2013 -0600
+  
+      Initial checkin
+ -- Ryan A. Chapman <ryan@rchapman.org>  Mon, 11 Nov 2013 11:18:09 -0700

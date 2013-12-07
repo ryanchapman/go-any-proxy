@@ -1,0 +1,18 @@
+#!/bin/bash
+set -e
+
+if [ "$1" = "purge" -a -e /usr/share/debconf/confmodule ]; then
+    . /usr/share/debconf/confmodule
+    # remove our changes to the db
+    db_purge
+fi
+
+if [ "$1" = "remove" ]; then
+    . /usr/share/debconf/confmodule
+
+    # remove start up script
+    update-rc.d -f any_proxy remove
+
+    # remove changes to the db
+    db_purge
+fi

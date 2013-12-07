@@ -1,0 +1,15 @@
+Suite: stable
+Version: 6.0
+Component: main
+Origin: ryan@rchapman.org
+Label: any_proxy repo
+Architecture: amd64
+Date: Mon Nov 11 11:18:27 MST 2013
+MD5Sum:
+ 0acbe74765c671368ce2b5f0bee5abcc 742 main/binary-amd64/Packages
+ e00d3c8f1001f460c80963d7a2df6886 515 main/binary-amd64/Packages.gz
+ e00aa3595a51ccd78e6dc94896f91ec3 570 main/binary-amd64/Packages.bz2
+SHA1:
+ 6c3841ce32f7c9227d850bfdef7f9f50adfa74af 742 main/binary-amd64/Packages
+ 1fb07283cd2c9f3dcd6b2af2e611ab62bf8ee7ee 515 main/binary-amd64/Packages.gz
+ f8789ff0d4b8db9fefc726e84003152925594a91 570 main/binary-amd64/Packages.bz2

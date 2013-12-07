@@ -1,0 +1,2 @@
+any_proxy usr/bin
+debian/etc/init.d/any_proxy etc/init.d

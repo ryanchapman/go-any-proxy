@@ -1,0 +1,42 @@
+Template: any-proxy/listenport
+Type: string
+Default: 3128
+Description: Listen on port:
+  Enter the port where any_proxy should listen for 
+  requests. Default is 3128.
+
+Template: any-proxy/portstoproxy
+Type: string
+Default: 0:65535
+Description: Ports to proxy:
+  Enter the ports which should be proxied through any_proxy.
+
+  With the default (0:65535), when a user attempts to make a
+  connection to a host on port 0 through 65535, iptables will
+  redirect the request to any_proxy.
+  
+  The syntax of this option is the same as iptables --dport
+  option, which is port[,port][,begin:end]
+
+Template: any-proxy/proxyservers
+Type: string
+Description: Upstream proxy servers:
+  Enter your upstream proxy servers IP addresses and ports.
+
+  For example, 192.168.10.1:80,192.168.20.1:8080
+  would configure any_proxy to send traffic to the 
+  proxy server at 192.168.10.1 listening on port 80 
+  and the proxy server at 192.168.20.1 listening on port 8080.
+
+Template: any-proxy/directservers
+Type: string
+Description: Direct servers:
+  Enter the IP addresses of any destination hosts
+  that should not be sent to an upstream proxy.  Instead,
+  traffic will be sent directly to the servers you specify
+  in this list.
+
+  For example, 192.168.10.1,192.168.20.1
+  would configure any_proxy so that when a host requests
+  to make a connection to 192.168.10.1 or 192.168.20.1,
+  the traffic will not be sent to the upstream proxies.
