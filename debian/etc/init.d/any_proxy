@@ -33,7 +33,7 @@ PATH=/bin:/usr/bin:/sbin:/usr/sbin
 start () {
 	/sbin/iptables -t nat -F ANYPROXY &>/dev/null
 	/sbin/iptables -t nat -N ANYPROXY &>/dev/null
-	# if we are not on a vyatta, need to add WEBPROXY to PREROUTING rule
+	# if we are not on a vyatta, need to add ANYPROXY to PREROUTING rule
 	uname -a | grep vyatta &>/dev/null
 	if [[ $? != 0 ]]; then
 		/sbin/iptables -t nat -L PREROUTING 1 | egrep '^ANYPROXY' &>/dev/null || /sbin/iptables -t nat -I PREROUTING 1 -j ANYPROXY
