@@ -83,6 +83,7 @@ func init() {
         fmt.Fprintf(os.Stdout, "       Proxies any tcp or udp port transparently using Linux netfilter\n\n")
         fmt.Fprintf(os.Stdout, "Mandatory\n")
         fmt.Fprintf(os.Stdout, "  -l=ADDRPORT      Address and port to listen on (e.g., :3128 or 127.0.0.1:3128)\n")
+        fmt.Fprintf(os.Stdout, "Optional\n")
         fmt.Fprintf(os.Stdout, "  -p=PROXIES       Address and ports of upstream proxy servers to use\n")
         fmt.Fprintf(os.Stdout, "                   Multiple address/ports can be specified by separating with commas\n")
         fmt.Fprintf(os.Stdout, "                   (e.g., 10.1.1.1:80,10.2.2.2:3128 would try to proxy requests to a\n")
@@ -90,7 +91,6 @@ func init() {
         fmt.Fprintf(os.Stdout, "                    then try port 3128 at 10.2.2.2)\n")
         fmt.Fprintf(os.Stdout, "                   Note that requests are not load balanced. If a request fails to the\n")
         fmt.Fprintf(os.Stdout, "                   first proxy, then the second is tried and so on.\n\n")
-        fmt.Fprintf(os.Stdout, "Optional\n")
         fmt.Fprintf(os.Stdout, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
         fmt.Fprintf(os.Stdout, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
         fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
@@ -256,7 +256,7 @@ func setupLogging() {
 
 func main() {
     flag.Parse()
-    if gListenAddrPort == "" || gProxyServerSpec == "" {
+    if gListenAddrPort == "" {
         flag.Usage()
         os.Exit(1)
     }
@@ -270,7 +270,11 @@ func main() {
     director = getDirector(dirFuncs)
 
     log.RedirectStreams()
-    checkProxies()
+
+    // if user gave us upstream proxies, check and see if they are alive
+    if gProxyServerSpec == "" {
+	checkProxies()
+    }
 
     lnaddr, err := net.ResolveTCPAddr("tcp", gListenAddrPort)
     if err != nil {
@@ -554,10 +558,6 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
 }
 
 func handleConnection(clientConn *net.TCPConn) {
-
-    // TODO: remove
-    log.Debugf("Enter handleConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
-
     if clientConn == nil {
         log.Debugf("handleConnection(): oops, clientConn is nil")
         return
@@ -575,6 +575,11 @@ func handleConnection(clientConn *net.TCPConn) {
         log.Infof("handleConnection(): can not handle this connection, error occurred in getting original destination ip address/port: %+v\n", err)
         return
     }
+    // If no upstream proxies were provided on the command line, assume all traffic should be sent directly
+    if gProxyServerSpec == "" {
+            handleDirectConnection(clientConn, ipv4, port)
+            return
+    } 
     // Evaluate for direct connection
     if ok,_ := director(ipv4); ok {
             handleDirectConnection(clientConn, ipv4, port)

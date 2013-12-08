@@ -57,7 +57,7 @@ export BUILD_DIR=$2
 if [ "$BUILD_DIR" = "" ]; then export BUILD_DIR=.; fi
 case $1 in 
   "clean")
-    rm -f version.go
+    rm -f version.go any_proxy
     ;;
   "version")
     make_version
@@ -89,15 +89,7 @@ case $1 in
     fi
     ;;
   *)
-    if [[ -f any_proxy ]]; then
-        echo -n "A built product already exists. Re-compile and package (y/n) [n]: "
-        read ANS
-        if [[ $ANS != y && $ANS != y ]]; then
-           exit 1 
-        fi
-    fi
     build
-    make_debian_package
     ;;
 esac
 
