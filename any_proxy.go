@@ -272,7 +272,7 @@ func main() {
     log.RedirectStreams()
 
     // if user gave us upstream proxies, check and see if they are alive
-    if gProxyServerSpec == "" {
+    if gProxyServerSpec != "" {
 	checkProxies()
     }
 
