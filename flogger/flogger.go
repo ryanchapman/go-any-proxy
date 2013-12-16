@@ -138,6 +138,10 @@ func (f *Flogger) Panic(args ...interface{}) {
 
 // Redirects stdout and stderr to log file 
 func (f *Flogger) RedirectStreams() {
-    syscall.Dup2(int(f.fd.Fd()), 1)
-    syscall.Dup2(int(f.fd.Fd()), 2)
+    RedirectStream(STDOUT)
+    RedirectStream(STDERR)
+}
+
+func (f *Flogger) RedirectStream(fd int) {
+    syscall.Dup2(int(f.fd.Fd()), fd)
 }

@@ -33,7 +33,7 @@ package main
 
 import (
     "fmt"
-    log "github.com/ryanchapman/go-any-proxy/flogger"
+    log "github.com/zdannar/go-any-proxy/flogger"
     "os"
     "os/signal"
     "runtime"

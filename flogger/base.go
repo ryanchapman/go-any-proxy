@@ -15,6 +15,11 @@ const (
     PANIC
 )
 
+const (
+    STDOUT int = iota
+    STDERR int = iota
+)
+
 var (
     FLOG_APPEND int = os.O_WRONLY|os.O_APPEND|os.O_CREATE
     FLOG_FORMAT int = log.LstdFlags|log.Lshortfile

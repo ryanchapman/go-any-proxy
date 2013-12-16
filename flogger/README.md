@@ -10,6 +10,7 @@ logging levels.  Flogger provides the following features.
 * Allow redirection of stdout and sterr to capture panics and other messages. 
 * Other packages can import and use flogger without having to define a specific
   logger. 
+* If a logfile is not configured, output will log to stdout.
 
 ###Example
 
