@@ -19,6 +19,11 @@ vEOF
     echo "Wrote $BUILD_DIR/version.go: timestamp=$timestamp; builduser=$builduser; buildhost=$buildhost"
 }
 
+function pull_deps()
+{
+    go get -u github.com/zdannar/flogger
+}
+
 function build ()
 {
     make_version
@@ -89,6 +94,7 @@ case $1 in
     fi
     ;;
   *)
+    pull_deps
     build
     ;;
 esac
