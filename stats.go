@@ -72,6 +72,11 @@ var proxy200Responses struct {
     n uint64
 }
 
+var proxy300Responses struct {
+    sync.Mutex
+    n uint64
+}
+
 var proxy400Responses struct {
     sync.Mutex
     n uint64
@@ -165,6 +170,16 @@ func incrProxy200Responses() {
 
 func numProxy200Responses() (uint64) {
     return proxy200Responses.n
+}
+
+func incrProxy300Responses() {
+    proxy300Responses.Lock()
+    proxy300Responses.n++
+    proxy300Responses.Unlock()
+}
+
+func numProxy300Responses() (uint64) {
+    return proxy300Responses.n
 }
 
 func incrProxy400Responses() {

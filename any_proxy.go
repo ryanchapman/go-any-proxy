@@ -72,6 +72,7 @@ var gProxyServers []string
 var gLogfile string
 var gCpuProfile string
 var gMemProfile string
+var gClientRedirects int
 
 type directorFunc func(string) bool
 var director func(string) (bool, int)
@@ -93,6 +94,7 @@ func init() {
         fmt.Fprintf(os.Stdout, "                   first proxy, then the second is tried and so on.\n\n")
         fmt.Fprintf(os.Stdout, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
         fmt.Fprintf(os.Stdout, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
+        fmt.Fprintf(os.Stdout, "  -r=1             Enable relaying of HTTP redirects from upstream to clients\n")
         fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
         fmt.Fprintf(os.Stdout, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
         fmt.Fprintf(os.Stdout, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
@@ -128,6 +130,7 @@ func init() {
     flag.StringVar(&gCpuProfile,      "c", "", "Write cpu profile to file")
     flag.StringVar(&gMemProfile,      "m", "", "Write mem profile to file")
     flag.IntVar(   &gVerbosity,       "v", 0,  "Control level of logging. v=1 results in debugging info printed to the log.\n")
+    flag.IntVar(   &gClientRedirects, "r", 0,  "Should we relay HTTP redirects from upstream proxies? -r=1 if we should.\n")
 
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
@@ -532,12 +535,20 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             copy(clientConn, proxyConn, "client", "proxyserver")
             return
         }
+        if strings.Contains(status, "301") || strings.Contains(status, "302") && gClientRedirects == 1 {
+            log.Debugf("PROXY|%v->%v->%s:%d|Status from proxy=%s (Redirect), relaying response to client", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(status))
+            incrProxy300Responses()
+            fmt.Fprintf(clientConn, status)
+            copy(clientConn, proxyConn, "client", "proxyserver")
+            return
+        }
         if strings.Contains(status, "200") == false {
             log.Infof("PROXY|%v->%v->%s:%d|ERR: Proxy response to CONNECT was: %s. Trying next proxy.\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(status))
             incrProxyNon200Responses()
             continue
+        } else {
+            incrProxy200Responses()
         }
-        incrProxy200Responses()
         log.Debugf("PROXY|%v->%v->%s:%d|Proxied connection", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
         success = true
         break
@@ -548,7 +559,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     }
     if success == false {
         log.Infof("PROXY|%v->UNAVAILABLE->%s:%d|ERR: Tried all proxies, but could not establish connection. Giving up.\n", clientConn.RemoteAddr(), ipv4, port)
-        fmt.Fprintf(clientConn, "HTTP/1.0 503 Service Unavailable\r\nServer: go-https-proxy\r\nX-Go-Https-Proxy-Error: ERR_NO_PROXIES\r\n\r\n")
+        fmt.Fprintf(clientConn, "HTTP/1.0 503 Service Unavailable\r\nServer: go-any-proxy\r\nX-AnyProxy-Error: ERR_NO_PROXIES\r\n\r\n")
         clientConn.Close()
         return
     } 
