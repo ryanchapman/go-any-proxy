@@ -210,7 +210,7 @@ func setupProfiling() {
 
     var profilef *os.File
     var err error
-    if gMemProfile == "" {
+    if gMemProfile != "" {
         profilef, err = os.Create(gMemProfile)
         if err != nil {
             panic(err)
