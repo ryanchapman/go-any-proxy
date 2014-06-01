@@ -74,8 +74,8 @@ var gCpuProfile string
 var gMemProfile string
 var gClientRedirects int
 
-type directorFunc func(string) bool
-var director func(string) (bool, int)
+type directorFunc func(*net.IP) bool
+var director func(*net.IP) (bool, int)
 
 func init() {
     flag.Usage = func() {
@@ -147,53 +147,50 @@ func buildDirectors(gDirects string) ([]directorFunc) {
     // Generates a list of directorFuncs that are have "cached" values within
     // the scope of the functions.  
 
-    dstrings := strings.Split(gDirects, ",")
-    directors := make([]directorFunc, len(dstrings))
+    directorCidrs := strings.Split(gDirects, ",")
+    directorFuncs := make([]directorFunc, len(directorCidrs))
 
-    for idx,dstrOrig := range dstrings {
-        dstring := dstrOrig
+    for idx,directorCidr := range directorCidrs {
+        //dstring := director
         var dfunc directorFunc
-        if strings.Contains(dstring, "/") {
-
-            cidrIp, cidrIpNet, err := net.ParseCIDR(dstring)
+        if strings.Contains(directorCidr, "/") {
+            _, directorIpNet, err := net.ParseCIDR(directorCidr)
             if err != nil {
-                panic(fmt.Sprintf("\nUnable to parse CIDR string : %s : %s\n", dstring, err))
+                panic(fmt.Sprintf("\nUnable to parse CIDR string : %s : %s\n", directorCidr, err))
             }
-            dfunc = func(ip string) bool {
-                testIp := net.ParseIP(ip)
-                if cidrIp.Equal(testIp.Mask(cidrIpNet.Mask)) {
-                    return true
-                }
-                return false
+            dfunc = func(ptestip *net.IP) bool {
+                testIp := *ptestip
+                return directorIpNet.Contains(testIp)
             }
-            directors[idx] = dfunc
+            directorFuncs[idx] = dfunc
         } else {
-            dfunc = func(ip string) bool {
-                if ip == dstring {
-                    return true
-                }
-                return false
+            var directorIp net.IP
+            directorIp = net.ParseIP(directorCidr)
+            dfunc = func(ptestip *net.IP) bool {
+                var testIp net.IP
+                testIp = *ptestip
+                return testIp.Equal(directorIp)
             }
-            directors[idx] = dfunc
+            directorFuncs[idx] = dfunc
         }
 
     }
-    return directors
+    return directorFuncs
 }
 
-func getDirector(directors []directorFunc) func(string) (bool, int) {
+func getDirector(directors []directorFunc) func(*net.IP) (bool, int) {
     // getDirector:
-    // Returns a function(directorFunc) that loops through internal held 
+    // Returns a function(directorFunc) that loops through internally held 
     // directors evaluating each for possible matches.
     // 
     // directorFunc: 
     // Loops through directors and returns the (true, idx) where the index is 
-    // the sequencial director that returned true. Else the function returns
+    // the sequential director that returned true. Else the function returns
     // (false, 0) if there are no directors to handle the ip.
 
-    dFunc := func(ipStr string) (bool, int) {
-        for idx,dfunc := range directors {
-            if dfunc(ipStr) {
+    dFunc := func(ipaddr *net.IP) (bool, int) {
+        for idx, dfunc := range directors {
+            if dfunc(ipaddr) {
                 return true, idx
             }
         }
@@ -592,7 +589,8 @@ func handleConnection(clientConn *net.TCPConn) {
             return
     } 
     // Evaluate for direct connection
-    if ok,_ := director(ipv4); ok {
+    ip := net.ParseIP(ipv4)
+    if ok,_ := director(&ip); ok {
             handleDirectConnection(clientConn, ipv4, port)
             return
     }
