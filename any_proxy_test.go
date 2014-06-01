@@ -210,8 +210,6 @@ func BenchmarkDirector10(b *testing.B) {
     }
 }
 
-// benchmark when we have 10 directs. The address we are testing against is one that
-// will not match any directs, just to make sure we search through all directs
 func BenchmarkDirector100(b *testing.B) {
     gDirects  = "1.0.0.0/24,2.0.0.0/24,3.0.0.0/24,4.0.0.0/24,5.0.0.0/24,"
     gDirects += "6.0.0.0/24,7.0.0.0/24,8.0.0.0/24,9.0.0.0/24,10.0.0.0/24,"
