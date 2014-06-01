@@ -81,7 +81,7 @@ func init() {
     flag.Usage = func() {
         fmt.Fprintf(os.Stdout, "%s\n\n", versionString())
         fmt.Fprintf(os.Stdout, "usage: %s -l listenaddress -p proxies [-d directs] [-v=N] [-f file] [-c file] [-m file]\n", os.Args[0])
-        fmt.Fprintf(os.Stdout, "       Proxies any tcp or udp port transparently using Linux netfilter\n\n")
+        fmt.Fprintf(os.Stdout, "       Proxies any tcp port transparently using Linux netfilter\n\n")
         fmt.Fprintf(os.Stdout, "Mandatory\n")
         fmt.Fprintf(os.Stdout, "  -l=ADDRPORT      Address and port to listen on (e.g., :3128 or 127.0.0.1:3128)\n")
         fmt.Fprintf(os.Stdout, "Optional\n")
