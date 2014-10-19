@@ -42,6 +42,7 @@ package main
 
 import (
     "bufio"
+	"bytes"
     "errors"
     "flag"
     "fmt"
@@ -56,12 +57,25 @@ import (
     "strings"
     "syscall"
     "time"
+	"unsafe"
+	"encoding/binary"
 )
 
 const VERSION = "1.1"
 const SO_ORIGINAL_DST = 80
 const DEFAULTLOG = "/var/log/any_proxy.log"
 const STATSFILE  = "/var/log/any_proxy.stats"
+
+
+func Ioctl(fd uintptr, data unsafe.Pointer) (err syscall.Errno) {
+	_, _, err = syscall.RawSyscall(syscall.SYS_IOCTL, fd, uintptr(3226747927), uintptr(data))
+	if err != 0 {
+		log.Debugf("got error: %T(%v) = %d", err, err, err)
+		return
+	}
+
+	return
+}
 
 
 var gListenAddrPort string
@@ -76,6 +90,21 @@ var gClientRedirects int
 
 type directorFunc func(*net.IP) bool
 var director func(*net.IP) (bool, int)
+
+type Natlook struct {
+	saddr [16]byte
+	daddr [16]byte
+	rsaddr [16]byte
+	rdaddr [16]byte
+	sxport [4]byte
+	dxport [4]byte
+	rxsport [4]byte
+	rxdport [4]byte
+	af uint8
+	proto uint8
+	direction uint8
+}
+
 
 func init() {
     flag.Usage = func() {
@@ -396,7 +425,45 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
     // Example result: &{Multiaddr:[2 0 31 144 206 190 36 45 0 0 0 0 0 0 0 0] Interface:0}
     // port starts at the 3rd byte and is 2 bytes long (31 144 = port 8080)
     // IPv4 address starts at the 5th byte, 4 bytes long (206 190 36 45)
-    addr, err :=  syscall.GetsockoptIPv6Mreq(int(clientConnFile.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
+    //addr, err :=  syscall.GetsockoptIPv6Mreq(int(clientConnFile.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
+	remoteHost, remotePortStr, err := net.SplitHostPort(clientConn.RemoteAddr().String())
+	remotePortInt, _ := strconv.Atoi(remotePortStr)
+	localHost, localPortStr, _ := net.SplitHostPort(clientConn.LocalAddr().String())
+	localPortInt, _ := strconv.Atoi(localPortStr)
+
+	pfdev, err := syscall.Open("/dev/pf", syscall.O_RDWR, 0666)
+	if err != nil {
+		log.Infof("Unable to open /dev/pf: %v", err)
+	}
+	natlook := Natlook {}
+	natlook.af = syscall.AF_INET
+	natlook.saddr[0] = net.ParseIP(remoteHost)[12]
+	natlook.saddr[1] = net.ParseIP(remoteHost)[13]
+	natlook.saddr[2] = net.ParseIP(remoteHost)[14]
+	natlook.saddr[3] = net.ParseIP(remoteHost)[15]
+	bs := make([]byte, 4)
+	binary.BigEndian.PutUint32(bs, uint32(remotePortInt))
+
+	natlook.sxport[0] = bs[2]
+	natlook.sxport[1] = bs[3]
+
+	natlook.daddr[0] = net.ParseIP(localHost)[12]
+	natlook.daddr[1] = net.ParseIP(localHost)[13]
+	natlook.daddr[2] = net.ParseIP(localHost)[14]
+	natlook.daddr[3] = net.ParseIP(localHost)[15]
+	bs2 := make([]byte, 4)
+	binary.BigEndian.PutUint32(bs2, uint32(localPortInt))
+	natlook.dxport[0] = bs2[2]
+	natlook.dxport[1] = bs2[3]
+	natlook.proto = syscall.IPPROTO_TCP
+	natlook.direction = 3
+	log.Debugf("before(natlook): %v", natlook)
+	Ioctl(uintptr(pfdev), unsafe.Pointer(&natlook))
+
+	log.Debugf("after(natlook): %v", natlook)
+	log.Debugf("size(natlook): %v", unsafe.Sizeof(natlook))
+
+    addr, err := syscall.Getsockname(int(clientConnFile.Fd()))
     log.Debugf("getOriginalDst(): SO_ORIGINAL_DST=%+v\n", addr)
     if err != nil {
         log.Infof("GETORIGINALDST|%v->?->FAILEDTOBEDETERMINED|ERR: getsocketopt(SO_ORIGINAL_DST) failed: %v", srcipport, err)
@@ -417,12 +484,14 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
         return
     }
 
-    ipv4 = itod(uint(addr.Multiaddr[4])) + "." + 
-           itod(uint(addr.Multiaddr[5])) + "." + 
-           itod(uint(addr.Multiaddr[6])) + "." + 
-           itod(uint(addr.Multiaddr[7]))
-    port = uint16(addr.Multiaddr[2]) << 8 + uint16(addr.Multiaddr[3])
-
+    ipv4 = itod(uint(natlook.rdaddr[0])) + "." +
+           itod(uint(natlook.rdaddr[1])) + "." +
+           itod(uint(natlook.rdaddr[2])) + "." +
+           itod(uint(natlook.rdaddr[3]))
+	dportBytes := make([]byte, 2)
+	dportBytes[1] = natlook.rxdport[0]
+	dportBytes[0] = natlook.rxdport[1]
+    binary.Read(bytes.NewBuffer(dportBytes[:]), binary.LittleEndian, &port)
     return
 }
 
