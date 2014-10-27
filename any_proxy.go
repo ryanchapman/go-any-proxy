@@ -56,6 +56,7 @@ import (
     "strings"
     "syscall"
     "time"
+    "encoding/base64"
 )
 
 const VERSION = "1.1"
@@ -69,6 +70,7 @@ var gProxyServerSpec string
 var gDirects string
 var gVerbosity int
 var gProxyServers []string
+var gAuthProxyServers = map[string] string { }
 var gLogfile string
 var gCpuProfile string
 var gMemProfile string
@@ -304,6 +306,15 @@ func checkProxies() {
     gProxyServers = strings.Split(gProxyServerSpec, ",")
     // make sure proxies resolve and are listening on specified port
     for i, proxySpec := range gProxyServers {
+	if strings.Contains(proxySpec, "@") {
+	    var authSplit = strings.Split(proxySpec, "@")
+	    var b64Auth = base64.StdEncoding.EncodeToString([]byte(authSplit[0]))
+	    gAuthProxyServers[authSplit[1]] = b64Auth
+	    proxySpec = authSplit[1]
+	    gProxyServers[i] = proxySpec
+	    log.Infof("Added authentication %v, %v\n", authSplit[0], b64Auth)
+	}
+
         conn, err := dial(proxySpec)
         if err != nil {
             log.Infof("Test connection to %v: failed. Removing from proxy server list\n", proxySpec)
@@ -515,7 +526,11 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             continue
         }
         log.Debugf("PROXY|%v->%v->%s:%d|Connected to proxy\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
-        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0\r\n%s\r\n", ipv4, port, headerXFF)
+	var authString = ""
+	if val, auth := gAuthProxyServers[proxySpec]; auth {
+	  authString = fmt.Sprintf("\r\nProxy-Authorization: Basic %s", val)
+	}
+        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0%s\r\n%s\r\n", ipv4, port, authString, headerXFF)
         log.Debugf("PROXY|%v->%v->%s:%d|Sending to proxy: %s\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(connectString))
         fmt.Fprintf(proxyConn, connectString)
         status, err := bufio.NewReader(proxyConn).ReadString('\n')

@@ -14,6 +14,12 @@ Build status can be found at http://travis-ci.org/ryanchapman/go-any-proxy
 
 For more info, see http://blog.rchapman.org/post/47406142744/transparently-proxying-http-and-https-connections
 
+## Authentication
+
+You can add basic authentication parameters if needed, like this this one :
+
+any_proxy -l :3140 -p "MyLogin:Password25@proxy.corporate.com:8080"
+
 ## Install Info 
 You may need to run `go get github.com/zdannar/flogger` for library dependencies.
 
