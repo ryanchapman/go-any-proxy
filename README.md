@@ -16,7 +16,7 @@ For more info, see http://blog.rchapman.org/post/47406142744/transparently-proxy
 
 ## Authentication
 
-You can add basic authentication parameters if needed, like this this one :
+You can add basic authentication parameters if needed, like this:
 
 any_proxy -l :3140 -p "MyLogin:Password25@proxy.corporate.com:8080"
 
