@@ -25,8 +25,8 @@ You may need to run `go get github.com/zdannar/flogger` for library dependencies
 
 ## Experimental Mac OS X support
 Fredrik Skogbreg has written the support for Mac OS X, but it considered experimental until a load and performance
-test is completed.  To build the mac version, after cloning this repo with "git clone https://github.com/ryanchapman/go-any-proxy.git", 
-change to the mac branch with 'git checkout mac', then make with './make.bash'.  You'll need to configure some firewall
+test is completed.  To build the mac version, after cloning this repo with `git clone https://github.com/ryanchapman/go-any-proxy.git`, 
+change to the mac branch with `git checkout mac`, then make with `./make.bash`.  You'll need to configure some firewall
 rules in Mac OS X firewall, see issue #16 for instructions.
 
 -Ryan A. Chapman
