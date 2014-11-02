@@ -42,6 +42,7 @@ package main
 
 import (
     "bufio"
+	"bytes"
     "errors"
     "flag"
     "fmt"
@@ -57,12 +58,28 @@ import (
     "syscall"
     "time"
     "encoding/base64"
+	"encoding/binary"
+	"unsafe"
 )
 
 const VERSION = "1.1"
 const SO_ORIGINAL_DST = 80
 const DEFAULTLOG = "/var/log/any_proxy.log"
 const STATSFILE  = "/var/log/any_proxy.stats"
+
+
+func DoNatLook(data unsafe.Pointer) (err syscall.Errno) {
+	pfdev, _ := syscall.Open("/dev/pf", syscall.O_RDONLY, 0666)
+
+	_, _, err = syscall.RawSyscall(syscall.SYS_IOCTL, uintptr(pfdev), uintptr(3226747927), uintptr(data))
+	if err != 0 {
+		syscall.Close(pfdev)
+		log.Debugf("got error: %T(%v) = %d", err, err, err)
+		return
+	}
+	syscall.Close(pfdev)
+	return
+}
 
 
 var gListenAddrPort string
@@ -75,9 +92,25 @@ var gLogfile string
 var gCpuProfile string
 var gMemProfile string
 var gClientRedirects int
+var gOsx bool
 
 type directorFunc func(*net.IP) bool
 var director func(*net.IP) (bool, int)
+
+type Natlook struct {
+	saddr [16]byte
+	daddr [16]byte
+	rsaddr [16]byte
+	rdaddr [16]byte
+	sxport [4]byte
+	dxport [4]byte
+	rxsport [4]byte
+	rxdport [4]byte
+	af uint8
+	proto uint8
+	direction uint8
+}
+
 
 func init() {
     flag.Usage = func() {
@@ -95,6 +128,7 @@ func init() {
         fmt.Fprintf(os.Stdout, "                   Note that requests are not load balanced. If a request fails to the\n")
         fmt.Fprintf(os.Stdout, "                   first proxy, then the second is tried and so on.\n\n")
         fmt.Fprintf(os.Stdout, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
+		fmt.Fprintf(os.Stdout, "  -x               Enable support for Mac OS X (Experimental)")
         fmt.Fprintf(os.Stdout, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
         fmt.Fprintf(os.Stdout, "  -r=1             Enable relaying of HTTP redirects from upstream to clients\n")
         fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
@@ -123,16 +157,17 @@ func init() {
         fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_wmem = 4096 65536 16777216\n")
         fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_congestion_control = cubic\n\n")
         fmt.Fprintf(os.Stdout, "To obtain statistics, send any_proxy signal SIGUSR1. Current stats will be printed to %v\n", STATSFILE)
-        fmt.Fprintf(os.Stdout, "Report bugs to <ryan@rchapman.org>.\n") 
+        fmt.Fprintf(os.Stdout, "Report bugs to <ryan@rchapman.org>.\n")
     }
-    flag.StringVar(&gListenAddrPort,  "l", "", "Address and port to listen on")
-    flag.StringVar(&gProxyServerSpec, "p", "", "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
-    flag.StringVar(&gDirects,         "d", "", "IP addresses to go direct")
-    flag.StringVar(&gLogfile,         "f", "", "Log file")
-    flag.StringVar(&gCpuProfile,      "c", "", "Write cpu profile to file")
-    flag.StringVar(&gMemProfile,      "m", "", "Write mem profile to file")
-    flag.IntVar(   &gVerbosity,       "v", 0,  "Control level of logging. v=1 results in debugging info printed to the log.\n")
-    flag.IntVar(   &gClientRedirects, "r", 0,  "Should we relay HTTP redirects from upstream proxies? -r=1 if we should.\n")
+    flag.StringVar(&gListenAddrPort,  "l", "",  "Address and port to listen on")
+    flag.StringVar(&gProxyServerSpec, "p", "",  "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
+    flag.StringVar(&gDirects,         "d", "",  "IP addresses to go direct")
+	flag.BoolVar(  &gOsx,	          "x", false, "Enable mac os x mode (default is false)")
+    flag.StringVar(&gLogfile,         "f", "",  "Log file")
+    flag.StringVar(&gCpuProfile,      "c", "",  "Write cpu profile to file")
+    flag.StringVar(&gMemProfile,      "m", "",  "Write mem profile to file")
+    flag.IntVar(   &gVerbosity,       "v", 0,   "Control level of logging. v=1 results in debugging info printed to the log.\n")
+    flag.IntVar(   &gClientRedirects, "r", 0,   "Should we relay HTTP redirects from upstream proxies? -r=1 if we should.\n")
 
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
@@ -147,7 +182,7 @@ func versionString() (v string) {
 
 func buildDirectors(gDirects string) ([]directorFunc) {
     // Generates a list of directorFuncs that are have "cached" values within
-    // the scope of the functions.  
+    // the scope of the functions.
 
     directorCidrs := strings.Split(gDirects, ",")
     directorFuncs := make([]directorFunc, len(directorCidrs))
@@ -182,11 +217,11 @@ func buildDirectors(gDirects string) ([]directorFunc) {
 
 func getDirector(directors []directorFunc) func(*net.IP) (bool, int) {
     // getDirector:
-    // Returns a function(directorFunc) that loops through internally held 
+    // Returns a function(directorFunc) that loops through internally held
     // directors evaluating each for possible matches.
-    // 
-    // directorFunc: 
-    // Loops through directors and returns the (true, idx) where the index is 
+    //
+    // directorFunc:
+    // Loops through directors and returns the (true, idx) where the index is
     // the sequential director that returned true. Else the function returns
     // (false, 0) if there are no directors to handle the ip.
 
@@ -373,68 +408,158 @@ func copy(dst io.ReadWriteCloser, src io.ReadWriteCloser, dstname string, srcnam
 }
 
 func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPConn *net.TCPConn, err error) {
-    if clientConn == nil {
-        log.Debugf("copy(): oops, dst is nil!")
-        err = errors.New("ERR: clientConn is nil")
-        return
-    }
+	if clientConn == nil {
+		log.Debugf("copy(): oops, dst is nil!")
+		err = errors.New("ERR: clientConn is nil")
+		return
+	}
 
-    // test if the underlying fd is nil
-    remoteAddr := clientConn.RemoteAddr()
-    if remoteAddr == nil {
-        log.Debugf("getOriginalDst(): oops, clientConn.fd is nil!")
-        err = errors.New("ERR: clientConn.fd is nil")
-        return
-    }
+	// test if the underlying fd is nil
+	remoteAddr := clientConn.RemoteAddr()
+	if remoteAddr == nil {
+		log.Debugf("getOriginalDst(): oops, clientConn.fd is nil!")
+		err = errors.New("ERR: clientConn.fd is nil")
+		return
+	}
 
-    srcipport := fmt.Sprintf("%v", clientConn.RemoteAddr())
+	srcipport := fmt.Sprintf("%v", clientConn.RemoteAddr())
 
-    newTCPConn = nil
-    // net.TCPConn.File() will cause the receiver's (clientConn) socket to be placed in blocking mode.
-    // The workaround is to take the File returned by .File(), do getsockopt() to get the original 
-    // destination, then create a new *net.TCPConn by calling net.Conn.FileConn().  The new TCPConn
-    // will be in non-blocking mode.  What a pain.
-    clientConnFile, err := clientConn.File()
-    if err != nil {
-        log.Infof("GETORIGINALDST|%v->?->FAILEDTOBEDETERMINED|ERR: could not get a copy of the client connection's file object", srcipport)
-        return
-    } else {
-        clientConn.Close()
-    }
+	newTCPConn = nil
+	// net.TCPConn.File() will cause the receiver's (clientConn) socket to be placed in blocking mode.
+	// The workaround is to take the File returned by .File(), do getsockopt() to get the original
+	// destination, then create a new *net.TCPConn by calling net.Conn.FileConn().  The new TCPConn
+	// will be in non-blocking mode.  What a pain.
+	clientConnFile, err := clientConn.File()
+	if err != nil {
+		log.Infof("GETORIGINALDST|%v->?->FAILEDTOBEDETERMINED|ERR: could not get a copy of the client connection's file object", srcipport)
+		return
+	} else {
+		clientConn.Close()
+	}
 
-    // Get original destination
-    // this is the only syscall in the Golang libs that I can find that returns 16 bytes
-    // Example result: &{Multiaddr:[2 0 31 144 206 190 36 45 0 0 0 0 0 0 0 0] Interface:0}
-    // port starts at the 3rd byte and is 2 bytes long (31 144 = port 8080)
-    // IPv4 address starts at the 5th byte, 4 bytes long (206 190 36 45)
-    addr, err :=  syscall.GetsockoptIPv6Mreq(int(clientConnFile.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
-    log.Debugf("getOriginalDst(): SO_ORIGINAL_DST=%+v\n", addr)
-    if err != nil {
-        log.Infof("GETORIGINALDST|%v->?->FAILEDTOBEDETERMINED|ERR: getsocketopt(SO_ORIGINAL_DST) failed: %v", srcipport, err)
-        return
-    }
-    newConn, err := net.FileConn(clientConnFile)
-    if err != nil {
-        log.Infof("GETORIGINALDST|%v->?->%v|ERR: could not create a FileConn fron clientConnFile=%+v: %v", srcipport, addr, clientConnFile, err)
-        return
-    }
-    if _, ok := newConn.(*net.TCPConn); ok {
-        newTCPConn = newConn.(*net.TCPConn)
-        clientConnFile.Close()
-    } else {
-        errmsg := fmt.Sprintf("ERR: newConn is not a *net.TCPConn, instead it is: %T (%v)", newConn, newConn)
-        log.Infof("GETORIGINALDST|%v->?->%v|%s", srcipport, addr, errmsg)
-        err = errors.New(errmsg)
-        return
-    }
+	// Get original destination
+	// this is the only syscall in the Golang libs that I can find that returns 16 bytes
+	// Example result: &{Multiaddr:[2 0 31 144 206 190 36 45 0 0 0 0 0 0 0 0] Interface:0}
+	// port starts at the 3rd byte and is 2 bytes long (31 144 = port 8080)
+	// IPv4 address starts at the 5th byte, 4 bytes long (206 190 36 45)
+	addr, err :=  syscall.GetsockoptIPv6Mreq(int(clientConnFile.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
+	log.Debugf("getOriginalDst(): SO_ORIGINAL_DST=%+v\n", addr)
+	if err != nil {
+		log.Infof("GETORIGINALDST|%v->?->FAILEDTOBEDETERMINED|ERR: getsocketopt(SO_ORIGINAL_DST) failed: %v", srcipport, err)
+		return
+	}
+	newConn, err := net.FileConn(clientConnFile)
+	if err != nil {
+		log.Infof("GETORIGINALDST|%v->?->%v|ERR: could not create a FileConn fron clientConnFile=%+v: %v", srcipport, addr, clientConnFile, err)
+		return
+	}
+	if _, ok := newConn.(*net.TCPConn); ok {
+		newTCPConn = newConn.(*net.TCPConn)
+		clientConnFile.Close()
+	} else {
+		errmsg := fmt.Sprintf("ERR: newConn is not a *net.TCPConn, instead it is: %T (%v)", newConn, newConn)
+		log.Infof("GETORIGINALDST|%v->?->%v|%s", srcipport, addr, errmsg)
+		err = errors.New(errmsg)
+		return
+	}
 
-    ipv4 = itod(uint(addr.Multiaddr[4])) + "." + 
-           itod(uint(addr.Multiaddr[5])) + "." + 
-           itod(uint(addr.Multiaddr[6])) + "." + 
-           itod(uint(addr.Multiaddr[7]))
-    port = uint16(addr.Multiaddr[2]) << 8 + uint16(addr.Multiaddr[3])
+	ipv4 = itod(uint(addr.Multiaddr[4])) + "." +
+			itod(uint(addr.Multiaddr[5])) + "." +
+			itod(uint(addr.Multiaddr[6])) + "." +
+			itod(uint(addr.Multiaddr[7]))
+	port = uint16(addr.Multiaddr[2]) << 8 + uint16(addr.Multiaddr[3])
 
-    return
+	return
+}
+
+func getOriginalDstMac(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPConn *net.TCPConn, err error) {
+	if clientConn == nil {
+		log.Debugf("copy(): oops, dst is nil!")
+		err = errors.New("ERR: clientConn is nil")
+		return
+	}
+
+	// test if the underlying fd is nil
+	remoteAddr := clientConn.RemoteAddr()
+	if remoteAddr == nil {
+		log.Debugf("getOriginalDst(): oops, clientConn.fd is nil!")
+		err = errors.New("ERR: clientConn.fd is nil")
+		return
+	}
+
+	srcipport := fmt.Sprintf("%v", clientConn.RemoteAddr())
+
+	newTCPConn = nil
+	// net.TCPConn.File() will cause the receiver's (clientConn) socket to be placed in blocking mode.
+	// The workaround is to take the File returned by .File(), do getsockopt() to get the original
+	// destination, then create a new *net.TCPConn by calling net.Conn.FileConn().  The new TCPConn
+	// will be in non-blocking mode.  What a pain.
+	clientConnFile, err := clientConn.File()
+	if err != nil {
+		log.Infof("GETORIGINALDST|%v->?->FAILEDTOBEDETERMINED|ERR: could not get a copy of the client connection's file object", srcipport)
+		return
+	} else {
+		clientConn.Close()
+	}
+
+	remoteHost, remotePortStr, err := net.SplitHostPort(clientConn.RemoteAddr().String())
+	remotePortInt, _ := strconv.Atoi(remotePortStr)
+	localHost, localPortStr, _ := net.SplitHostPort(clientConn.LocalAddr().String())
+	localPortInt, _ := strconv.Atoi(localPortStr)
+
+
+
+	natlook := Natlook {}
+	natlook.af = syscall.AF_INET
+	natlook.saddr[0] = net.ParseIP(remoteHost)[12]
+	natlook.saddr[1] = net.ParseIP(remoteHost)[13]
+	natlook.saddr[2] = net.ParseIP(remoteHost)[14]
+	natlook.saddr[3] = net.ParseIP(remoteHost)[15]
+	bs := make([]byte, 4)
+	binary.BigEndian.PutUint32(bs, uint32(remotePortInt))
+
+	natlook.sxport[0] = bs[2]
+	natlook.sxport[1] = bs[3]
+
+	natlook.daddr[0] = net.ParseIP(localHost)[12]
+	natlook.daddr[1] = net.ParseIP(localHost)[13]
+	natlook.daddr[2] = net.ParseIP(localHost)[14]
+	natlook.daddr[3] = net.ParseIP(localHost)[15]
+	bs2 := make([]byte, 4)
+	binary.BigEndian.PutUint32(bs2, uint32(localPortInt))
+	natlook.dxport[0] = bs2[2]
+	natlook.dxport[1] = bs2[3]
+	natlook.proto = syscall.IPPROTO_TCP
+	natlook.direction = 3
+	log.Debugf("before(natlook): %v", natlook)
+
+	DoNatLook(unsafe.Pointer(&natlook))
+
+	newConn, err := net.FileConn(clientConnFile)
+	if err != nil {
+		log.Infof("GETORIGINALDST|%v->?->%v|ERR: could not create a FileConn fron clientConnFile=%+v: %v", srcipport, natlook, clientConnFile, err)
+		return
+	}
+	if _, ok := newConn.(*net.TCPConn); ok {
+		newTCPConn = newConn.(*net.TCPConn)
+		clientConnFile.Close()
+	} else {
+		errmsg := fmt.Sprintf("ERR: newConn is not a *net.TCPConn, instead it is: %T (%v)", newConn, newConn)
+		log.Infof("GETORIGINALDST|%v->?->%v|%s", srcipport, natlook, errmsg)
+		err = errors.New(errmsg)
+		return
+	}
+
+	ipv4 = itod(uint(natlook.rdaddr[0])) + "." +
+			itod(uint(natlook.rdaddr[1])) + "." +
+			itod(uint(natlook.rdaddr[2])) + "." +
+			itod(uint(natlook.rdaddr[3]))
+	dportBytes := make([]byte, 2)
+	dportBytes[1] = natlook.rxdport[0]
+	dportBytes[0] = natlook.rxdport[1]
+	binary.Read(bytes.NewBuffer(dportBytes[:]), binary.LittleEndian, &port)
+
+	return
 }
 
 func dial(spec string) (*net.TCPConn, error) {
@@ -574,7 +699,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
         fmt.Fprintf(clientConn, "HTTP/1.0 503 Service Unavailable\r\nServer: go-any-proxy\r\nX-AnyProxy-Error: ERR_NO_PROXIES\r\n\r\n")
         clientConn.Close()
         return
-    } 
+    }
     incrProxiedConnections()
     go copy(clientConn, proxyConn, "client", "proxyserver")
     go copy(proxyConn, clientConn, "proxyserver", "client")
@@ -593,23 +718,43 @@ func handleConnection(clientConn *net.TCPConn) {
         return
     }
 
-    ipv4, port, clientConn, err := getOriginalDst(clientConn)
-    if err != nil {
-        log.Infof("handleConnection(): can not handle this connection, error occurred in getting original destination ip address/port: %+v\n", err)
-        return
-    }
-    // If no upstream proxies were provided on the command line, assume all traffic should be sent directly
-    if gProxyServerSpec == "" {
-            handleDirectConnection(clientConn, ipv4, port)
-            return
-    } 
-    // Evaluate for direct connection
-    ip := net.ParseIP(ipv4)
-    if ok,_ := director(&ip); ok {
-            handleDirectConnection(clientConn, ipv4, port)
-            return
-    }
-    handleProxyConnection(clientConn, ipv4, port)
+	if(gOsx) {
+		ipv4, port, clientConn, err := getOriginalDstMac(clientConn)
+		if err != nil {
+			log.Infof("handleConnection(): can not handle this connection, error occurred in getting original destination ip address/port: %+v\n", err)
+			return
+		}
+		// If no upstream proxies were provided on the command line, assume all traffic should be sent directly
+		if gProxyServerSpec == "" {
+			handleDirectConnection(clientConn, ipv4, port)
+			return
+		}
+		// Evaluate for direct connection
+		ip := net.ParseIP(ipv4)
+		if ok, _ := director(&ip); ok {
+			handleDirectConnection(clientConn, ipv4, port)
+			return
+		}
+		handleProxyConnection(clientConn, ipv4, port)
+	} else {
+		ipv4, port, clientConn, err := getOriginalDst(clientConn)
+		if err != nil {
+			log.Infof("handleConnection(): can not handle this connection, error occurred in getting original destination ip address/port: %+v\n", err)
+			return
+		}
+		// If no upstream proxies were provided on the command line, assume all traffic should be sent directly
+		if gProxyServerSpec == "" {
+			handleDirectConnection(clientConn, ipv4, port)
+			return
+		}
+		// Evaluate for direct connection
+		ip := net.ParseIP(ipv4)
+		if ok, _ := director(&ip); ok {
+			handleDirectConnection(clientConn, ipv4, port)
+			return
+		}
+		handleProxyConnection(clientConn, ipv4, port)
+	}
 }
 
 // from pkg/net/parse.go
