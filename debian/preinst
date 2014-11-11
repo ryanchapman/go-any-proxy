@@ -1,0 +1,7 @@
+#!/bin/bash
+set -e
+
+# stop any_proxy
+if [ -f /etc/init.d/any_proxy ]; then
+    invoke-rc.d any_proxy stop
+fi

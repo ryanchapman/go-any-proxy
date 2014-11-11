@@ -42,10 +42,11 @@ package main
 
 import (
     "bufio"
+    "errors"
     "flag"
     "fmt"
     "io"
-    log "github.com/ryanchapman/go-any-proxy/flogger"
+    log "github.com/zdannar/flogger"
     "net"
     "os"
     "os/signal"
@@ -55,9 +56,10 @@ import (
     "strings"
     "syscall"
     "time"
+    "encoding/base64"
 )
 
-const VERSION = "1.0"
+const VERSION = "1.1"
 const SO_ORIGINAL_DST = 80
 const DEFAULTLOG = "/var/log/any_proxy.log"
 const STATSFILE  = "/var/log/any_proxy.stats"
@@ -68,60 +70,69 @@ var gProxyServerSpec string
 var gDirects string
 var gVerbosity int
 var gProxyServers []string
+var gAuthProxyServers = map[string] string { }
 var gLogfile string
 var gCpuProfile string
 var gMemProfile string
+var gClientRedirects int
 
-type directorFunc func(string) bool
-var director func(string) (bool, int)
+type directorFunc func(*net.IP) bool
+var director func(*net.IP) (bool, int)
 
 func init() {
     flag.Usage = func() {
-        fmt.Fprintf(os.Stderr, "%s\n\n", versionString())
-        fmt.Fprintf(os.Stderr, "usage: %s -l listenaddress -p proxies [-d directs] [-v=N] [-f file] [-c file] [-m file]\n", os.Args[0])
-        fmt.Fprintf(os.Stderr, "       Proxies any tcp or udp port transparently using Linux netfilter\n\n")
-        fmt.Fprintf(os.Stderr, "Mandatory\n")
-        fmt.Fprintf(os.Stderr, "  -l=ADDRPORT      Address and port to listen on (e.g., :3128 or 127.0.0.1:3128)\n")
-        fmt.Fprintf(os.Stderr, "  -p=PROXIES       Address and ports of upstream proxy servers to use\n")
-        fmt.Fprintf(os.Stderr, "                   Multiple address/ports can be specified by separating with commas\n")
-        fmt.Fprintf(os.Stderr, "                   (e.g., 10.1.1.1:80,10.2.2.2:3128 would try to proxy requests to a\n")
-        fmt.Fprintf(os.Stderr, "                    server listening on port 80 at 10.1.1.1 and if that failed, would\n")
-        fmt.Fprintf(os.Stderr, "                    then try port 3128 at 10.2.2.2)\n")
-        fmt.Fprintf(os.Stderr, "                   Note that requests are not load balanced. If a request fails to the\n")
-        fmt.Fprintf(os.Stderr, "                   first proxy, then the second is tried and so on.\n\n")
-        fmt.Fprintf(os.Stderr, "Optional\n")
-        fmt.Fprintf(os.Stderr, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
-        fmt.Fprintf(os.Stderr, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
-        fmt.Fprintf(os.Stderr, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
-        fmt.Fprintf(os.Stderr, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
-        fmt.Fprintf(os.Stderr, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
-        fmt.Fprintf(os.Stderr, "                   standard pacakge, can be used to interpret the results. You can invoke pprof\n")
-        fmt.Fprintf(os.Stderr, "                   with \"go tool pprof\"\n")
-        fmt.Fprintf(os.Stderr, "  -m=FILE          Write a memory profile to FILE. This file can also be interpreted by golang's pprof\n\n")
-        fmt.Fprintf(os.Stderr, "any_proxy should be able to achieve 2000 connections/sec with logging on, 10k with logging off (-f=/dev/null).\n")
-        fmt.Fprintf(os.Stderr, "Before starting any_proxy, be sure to change the number of available file handles to at least 65535\n")
-        fmt.Fprintf(os.Stderr, "with \"ulimit -n 65535\"\n")
-        fmt.Fprintf(os.Stderr, "Some other tunables that enable higher performance:\n")
-        fmt.Fprintf(os.Stderr, "  net.core.rmem_default = 8388608\n")
-        fmt.Fprintf(os.Stderr, "  net.core.rmem_max = 16777216\n")
-        fmt.Fprintf(os.Stderr, "  net.core.wmem_max = 16777216\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.ip_local_port_range = 2000 65000\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_window_scaling = 1\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_max_syn_backlog = 3240000\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_max_tw_buckets = 1440000\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_rmem = 4096 87380 16777216\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_wmem = 4096 65536 16777216\n")
-        fmt.Fprintf(os.Stderr, "  net.ipv4.tcp_congestion_control = cubic\n\n")
-        fmt.Fprintf(os.Stderr, "To obtain statistics, send any_proxy signal SIGUSR1. Current stats will be printed to %v\n", STATSFILE)
-        fmt.Fprintf(os.Stderr, "Report bugs to <ryan@rchapman.org>.\n") 
+        fmt.Fprintf(os.Stdout, "%s\n\n", versionString())
+        fmt.Fprintf(os.Stdout, "usage: %s -l listenaddress -p proxies [-d directs] [-v=N] [-f file] [-c file] [-m file]\n", os.Args[0])
+        fmt.Fprintf(os.Stdout, "       Proxies any tcp port transparently using Linux netfilter\n\n")
+        fmt.Fprintf(os.Stdout, "Mandatory\n")
+        fmt.Fprintf(os.Stdout, "  -l=ADDRPORT      Address and port to listen on (e.g., :3128 or 127.0.0.1:3128)\n")
+        fmt.Fprintf(os.Stdout, "Optional\n")
+        fmt.Fprintf(os.Stdout, "  -p=PROXIES       Address and ports of upstream proxy servers to use\n")
+        fmt.Fprintf(os.Stdout, "                   Multiple address/ports can be specified by separating with commas\n")
+        fmt.Fprintf(os.Stdout, "                   (e.g., 10.1.1.1:80,10.2.2.2:3128 would try to proxy requests to a\n")
+        fmt.Fprintf(os.Stdout, "                    server listening on port 80 at 10.1.1.1 and if that failed, would\n")
+        fmt.Fprintf(os.Stdout, "                    then try port 3128 at 10.2.2.2)\n")
+        fmt.Fprintf(os.Stdout, "                   Note that requests are not load balanced. If a request fails to the\n")
+        fmt.Fprintf(os.Stdout, "                   first proxy, then the second is tried and so on.\n\n")
+        fmt.Fprintf(os.Stdout, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
+        fmt.Fprintf(os.Stdout, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
+        fmt.Fprintf(os.Stdout, "  -r=1             Enable relaying of HTTP redirects from upstream to clients\n")
+        fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
+        fmt.Fprintf(os.Stdout, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
+        fmt.Fprintf(os.Stdout, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
+        fmt.Fprintf(os.Stdout, "                   standard pacakge, can be used to interpret the results. You can invoke pprof\n")
+        fmt.Fprintf(os.Stdout, "                   with \"go tool pprof\"\n")
+        fmt.Fprintf(os.Stdout, "  -m=FILE          Write a memory profile to FILE. This file can also be interpreted by golang's pprof\n\n")
+        fmt.Fprintf(os.Stdout, "any_proxy should be able to achieve 2000 connections/sec with logging on, 10k with logging off (-f=/dev/null).\n")
+        fmt.Fprintf(os.Stdout, "Before starting any_proxy, be sure to change the number of available file handles to at least 65535\n")
+        fmt.Fprintf(os.Stdout, "with \"ulimit -n 65535\"\n")
+        fmt.Fprintf(os.Stdout, "Some other tunables that enable higher performance:\n")
+        fmt.Fprintf(os.Stdout, "  net.core.netdev_max_backlog = 2048\n")
+        fmt.Fprintf(os.Stdout, "  net.core.somaxconn = 1024\n")
+        fmt.Fprintf(os.Stdout, "  net.core.rmem_default = 8388608\n")
+        fmt.Fprintf(os.Stdout, "  net.core.rmem_max = 16777216\n")
+        fmt.Fprintf(os.Stdout, "  net.core.wmem_max = 16777216\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.ip_local_port_range = 2000 65000\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_window_scaling = 1\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_max_syn_backlog = 3240000\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_max_tw_buckets = 1440000\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_mem = 50576 64768 98152\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_rmem = 4096 87380 16777216\n")
+        fmt.Fprintf(os.Stdout, "  NOTE: if you see syn flood warnings in your logs, you need to adjust tcp_max_syn_backlog, tcp_synack_retries and tcp_abort_on_overflow\n");
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_syncookies = 1\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_wmem = 4096 65536 16777216\n")
+        fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_congestion_control = cubic\n\n")
+        fmt.Fprintf(os.Stdout, "To obtain statistics, send any_proxy signal SIGUSR1. Current stats will be printed to %v\n", STATSFILE)
+        fmt.Fprintf(os.Stdout, "Report bugs to <ryan@rchapman.org>.\n") 
     }
-    flag.StringVar(&gListenAddrPort,  "l", "",  "Address and port to listen on")
-    flag.StringVar(&gProxyServerSpec, "p", "",       "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
-    flag.StringVar(&gDirects,         "d", "",       "IP addresses to go direct")
-    flag.StringVar(&gLogfile,         "f", "",       "Log file")
+    flag.StringVar(&gListenAddrPort,  "l", "", "Address and port to listen on")
+    flag.StringVar(&gProxyServerSpec, "p", "", "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
+    flag.StringVar(&gDirects,         "d", "", "IP addresses to go direct")
+    flag.StringVar(&gLogfile,         "f", "", "Log file")
     flag.StringVar(&gCpuProfile,      "c", "", "Write cpu profile to file")
     flag.StringVar(&gMemProfile,      "m", "", "Write mem profile to file")
-    flag.IntVar(   &gVerbosity,       "v", 0,        "Control level of logging. v=1 results in debugging info printed to the log.\n")
+    flag.IntVar(   &gVerbosity,       "v", 0,  "Control level of logging. v=1 results in debugging info printed to the log.\n")
+    flag.IntVar(   &gClientRedirects, "r", 0,  "Should we relay HTTP redirects from upstream proxies? -r=1 if we should.\n")
 
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
@@ -138,51 +149,50 @@ func buildDirectors(gDirects string) ([]directorFunc) {
     // Generates a list of directorFuncs that are have "cached" values within
     // the scope of the functions.  
 
-    dstrings := strings.Split(gDirects, ",")
-    directors := make([]directorFunc, len(dstrings))
-    var dfunc directorFunc
+    directorCidrs := strings.Split(gDirects, ",")
+    directorFuncs := make([]directorFunc, len(directorCidrs))
 
-    for idx,dstring := range dstrings {
-        if strings.Contains(dstring, "/") {
-
-            cidrIp, cidrIpNet, err := net.ParseCIDR(dstring)
+    for idx,directorCidr := range directorCidrs {
+        //dstring := director
+        var dfunc directorFunc
+        if strings.Contains(directorCidr, "/") {
+            _, directorIpNet, err := net.ParseCIDR(directorCidr)
             if err != nil {
-                panic(fmt.Sprintf("\nUnable to parse CIDR string : %s : %s\n", dstring, err))
+                panic(fmt.Sprintf("\nUnable to parse CIDR string : %s : %s\n", directorCidr, err))
             }
-            dfunc = func(ip string) bool {
-                testIp := net.ParseIP(ip)
-                if cidrIp.Equal(testIp.Mask(cidrIpNet.Mask)) {
-                    return true
-                }
-                return false
+            dfunc = func(ptestip *net.IP) bool {
+                testIp := *ptestip
+                return directorIpNet.Contains(testIp)
             }
+            directorFuncs[idx] = dfunc
         } else {
-            dfunc = func(ip string) bool {
-                if ip == dstring {
-                    return true
-                }
-                return false
+            var directorIp net.IP
+            directorIp = net.ParseIP(directorCidr)
+            dfunc = func(ptestip *net.IP) bool {
+                var testIp net.IP
+                testIp = *ptestip
+                return testIp.Equal(directorIp)
             }
+            directorFuncs[idx] = dfunc
         }
-        directors[idx] = dfunc
 
     }
-    return directors
+    return directorFuncs
 }
 
-func getDirector(directors []directorFunc) func(string) (bool, int) {
+func getDirector(directors []directorFunc) func(*net.IP) (bool, int) {
     // getDirector:
-    // Returns a function(directorFunc) that loops through internal held 
+    // Returns a function(directorFunc) that loops through internally held 
     // directors evaluating each for possible matches.
     // 
     // directorFunc: 
     // Loops through directors and returns the (true, idx) where the index is 
-    // the sequencial director that returned true. Else the function returns
+    // the sequential director that returned true. Else the function returns
     // (false, 0) if there are no directors to handle the ip.
 
-    dFunc := func(ipStr string) (bool, int) {
-        for idx,dfunc := range directors {
-            if dfunc(ipStr) {
+    dFunc := func(ipaddr *net.IP) (bool, int) {
+        for idx, dfunc := range directors {
+            if dfunc(ipaddr) {
                 return true, idx
             }
         }
@@ -199,7 +209,7 @@ func setupProfiling() {
 
     var profilef *os.File
     var err error
-    if gMemProfile == "" {
+    if gMemProfile != "" {
         profilef, err = os.Create(gMemProfile)
         if err != nil {
             panic(err)
@@ -248,7 +258,7 @@ func setupLogging() {
 
 func main() {
     flag.Parse()
-    if gListenAddrPort == "" || gProxyServerSpec == "" {
+    if gListenAddrPort == "" {
         flag.Usage()
         os.Exit(1)
     }
@@ -262,7 +272,11 @@ func main() {
     director = getDirector(dirFuncs)
 
     log.RedirectStreams()
-    checkProxies()
+
+    // if user gave us upstream proxies, check and see if they are alive
+    if gProxyServerSpec != "" {
+	checkProxies()
+    }
 
     lnaddr, err := net.ResolveTCPAddr("tcp", gListenAddrPort)
     if err != nil {
@@ -292,7 +306,16 @@ func checkProxies() {
     gProxyServers = strings.Split(gProxyServerSpec, ",")
     // make sure proxies resolve and are listening on specified port
     for i, proxySpec := range gProxyServers {
-        conn, err := net.Dial("tcp", proxySpec)
+	if strings.Contains(proxySpec, "@") {
+	    var authSplit = strings.Split(proxySpec, "@")
+	    var b64Auth = base64.StdEncoding.EncodeToString([]byte(authSplit[0]))
+	    gAuthProxyServers[authSplit[1]] = b64Auth
+	    proxySpec = authSplit[1]
+	    gProxyServers[i] = proxySpec
+	    log.Infof("Added authentication %v, %v\n", authSplit[0], b64Auth)
+	}
+
+        conn, err := dial(proxySpec)
         if err != nil {
             log.Infof("Test connection to %v: failed. Removing from proxy server list\n", proxySpec)
             a := gProxyServers[:i]
@@ -349,8 +372,23 @@ func copy(dst io.ReadWriteCloser, src io.ReadWriteCloser, dstname string, srcnam
     src.Close()
 }
 
-func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPConn *net.TCPConn) {
+func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPConn *net.TCPConn, err error) {
+    if clientConn == nil {
+        log.Debugf("copy(): oops, dst is nil!")
+        err = errors.New("ERR: clientConn is nil")
+        return
+    }
+
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("getOriginalDst(): oops, clientConn.fd is nil!")
+        err = errors.New("ERR: clientConn.fd is nil")
+        return
+    }
+
     srcipport := fmt.Sprintf("%v", clientConn.RemoteAddr())
+
     newTCPConn = nil
     // net.TCPConn.File() will cause the receiver's (clientConn) socket to be placed in blocking mode.
     // The workaround is to take the File returned by .File(), do getsockopt() to get the original 
@@ -384,7 +422,9 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
         newTCPConn = newConn.(*net.TCPConn)
         clientConnFile.Close()
     } else {
-        log.Infof("GETORIGINALDST|%v->?->%v|ERR: newConn is not a *net.TCPConn, instead it is: %T (%v)", srcipport, addr, newConn, newConn)
+        errmsg := fmt.Sprintf("ERR: newConn is not a *net.TCPConn, instead it is: %T (%v)", newConn, newConn)
+        log.Infof("GETORIGINALDST|%v->?->%v|%s", srcipport, addr, errmsg)
+        err = errors.New(errmsg)
         return
     }
 
@@ -398,17 +438,47 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
 }
 
 func dial(spec string) (*net.TCPConn, error) {
-    conn, err := net.Dial("tcp", spec)
+    host, port, err := net.SplitHostPort(spec)
     if err != nil {
-        log.Infof("dial(): ERR: could not connect to %v: %v", spec, err)
+        log.Infof("dial(): ERR: could not extract host and port from spec %v: %v", spec, err)
+        return nil, err
     }
-    if _, ok := conn.(*net.TCPConn); ok {
-        return conn.(*net.TCPConn), err
+    remoteAddr, err := net.ResolveIPAddr("ip", host)
+    if err != nil {
+        log.Infof("dial(): ERR: could not resolve %v: %v", host, err)
+        return nil, err
     }
-    return nil, err
+    portInt, err := strconv.Atoi(port)
+    if err != nil {
+        log.Infof("dial(): ERR: could not convert network port from string \"%s\" to integer: %v", port, err)
+        return nil, err
+    }
+    remoteAddrAndPort := &net.TCPAddr{IP: remoteAddr.IP, Port: portInt}
+    var localAddr *net.TCPAddr
+    localAddr = nil
+    conn, err := net.DialTCP("tcp", localAddr, remoteAddrAndPort)
+    if err != nil {
+        log.Infof("dial(): ERR: could not connect to %v:%v: %v", remoteAddrAndPort.IP, remoteAddrAndPort.Port, err)
+    }
+    return conn, err
 }
 
 func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
+    // TODO: remove
+    log.Debugf("Enter handleDirectConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
+
+    if clientConn == nil {
+        log.Debugf("handleDirectConnection(): oops, clientConn is nil!")
+        return
+    }
+
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("handleDirectConnection(): oops, clientConn.fd is nil!")
+        return
+    }
+
     ipport := fmt.Sprintf("%s:%d", ipv4, port)
     directConn, err := dial(ipport)
     if err != nil {
@@ -428,12 +498,23 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var host string
     var headerXFF string = ""
 
+    // TODO: remove
+    log.Debugf("Enter handleProxyConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
+
     if clientConn == nil {
         log.Debugf("handleProxyConnection(): oops, clientConn is nil!")
         return
     }
 
-    host, _, err = net.SplitHostPort(clientConn.RemoteAddr().String())
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("handleProxyConnect(): oops, clientConn.fd is nil!")
+        err = errors.New("ERR: clientConn.fd is nil")
+        return
+    }
+
+    host, _, err = net.SplitHostPort(remoteAddr.String())
     if err == nil {
         headerXFF = fmt.Sprintf("X-Forwarded-For: %s\r\n", host)
     }
@@ -445,7 +526,11 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             continue
         }
         log.Debugf("PROXY|%v->%v->%s:%d|Connected to proxy\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
-        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0\r\n%s\r\n", ipv4, port, headerXFF)
+	var authString = ""
+	if val, auth := gAuthProxyServers[proxySpec]; auth {
+	  authString = fmt.Sprintf("\r\nProxy-Authorization: Basic %s", val)
+	}
+        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0%s\r\n%s\r\n", ipv4, port, authString, headerXFF)
         log.Debugf("PROXY|%v->%v->%s:%d|Sending to proxy: %s\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(connectString))
         fmt.Fprintf(proxyConn, connectString)
         status, err := bufio.NewReader(proxyConn).ReadString('\n')
@@ -462,12 +547,20 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             copy(clientConn, proxyConn, "client", "proxyserver")
             return
         }
+        if strings.Contains(status, "301") || strings.Contains(status, "302") && gClientRedirects == 1 {
+            log.Debugf("PROXY|%v->%v->%s:%d|Status from proxy=%s (Redirect), relaying response to client", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(status))
+            incrProxy300Responses()
+            fmt.Fprintf(clientConn, status)
+            copy(clientConn, proxyConn, "client", "proxyserver")
+            return
+        }
         if strings.Contains(status, "200") == false {
             log.Infof("PROXY|%v->%v->%s:%d|ERR: Proxy response to CONNECT was: %s. Trying next proxy.\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(status))
             incrProxyNon200Responses()
             continue
+        } else {
+            incrProxy200Responses()
         }
-        incrProxy200Responses()
         log.Debugf("PROXY|%v->%v->%s:%d|Proxied connection", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
         success = true
         break
@@ -478,7 +571,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     }
     if success == false {
         log.Infof("PROXY|%v->UNAVAILABLE->%s:%d|ERR: Tried all proxies, but could not establish connection. Giving up.\n", clientConn.RemoteAddr(), ipv4, port)
-        fmt.Fprintf(clientConn, "HTTP/1.0 503 Service Unavailable\r\nServer: go-https-proxy\r\nX-Go-Https-Proxy-Error: ERR_NO_PROXIES\r\n\r\n")
+        fmt.Fprintf(clientConn, "HTTP/1.0 503 Service Unavailable\r\nServer: go-any-proxy\r\nX-AnyProxy-Error: ERR_NO_PROXIES\r\n\r\n")
         clientConn.Close()
         return
     } 
@@ -488,13 +581,31 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
 }
 
 func handleConnection(clientConn *net.TCPConn) {
-    ipv4, port, clientConn := getOriginalDst(clientConn)
     if clientConn == nil {
-        log.Debugf("handleConnection(): oops, clientConn returned from getOriginalDst() is nil")
+        log.Debugf("handleConnection(): oops, clientConn is nil")
         return
     }
+
+    // test if the underlying fd is nil
+    remoteAddr := clientConn.RemoteAddr()
+    if remoteAddr == nil {
+        log.Debugf("handleConnection(): oops, clientConn.fd is nil!")
+        return
+    }
+
+    ipv4, port, clientConn, err := getOriginalDst(clientConn)
+    if err != nil {
+        log.Infof("handleConnection(): can not handle this connection, error occurred in getting original destination ip address/port: %+v\n", err)
+        return
+    }
+    // If no upstream proxies were provided on the command line, assume all traffic should be sent directly
+    if gProxyServerSpec == "" {
+            handleDirectConnection(clientConn, ipv4, port)
+            return
+    } 
     // Evaluate for direct connection
-    if ok,_ := director(ipv4); ok {
+    ip := net.ParseIP(ipv4)
+    if ok,_ := director(&ip); ok {
             handleDirectConnection(clientConn, ipv4, port)
             return
     }

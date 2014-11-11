@@ -1,0 +1,99 @@
+#! /bin/sh
+#
+# any_proxy		Startup script for the *any* proxy.
+#
+# Version:	@(#)anyproxy.rc  1.0  
+#
+### BEGIN INIT INFO
+# Provides:          any_proxy
+# Required-Start:    $network $remote_fs $syslog $all
+# Required-Stop:     $network $remote_fs $syslog
+# Should-Start:      $named
+# Should-Stop:       $named
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: any proxy
+### END INIT INFO
+
+NAME=any_proxy
+DESC="any_proxy"
+DAEMON=/usr/bin/any_proxy
+PIDFILE=/var/run/$NAME.pid
+LISTENPORT="3128"
+NET_TO_PROXY=""
+PORTS_TO_PROXY="0:65535"
+ANY_PROXY_ARGS="-l :$LISTENPORT"
+
+. /lib/lsb/init-functions
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+
+[ -x $DAEMON ] || exit 0
+
+start () {
+	/sbin/iptables -t nat -F ANYPROXY &>/dev/null
+	/sbin/iptables -t nat -N ANYPROXY &>/dev/null
+	# if we are not on a vyatta, need to add ANYPROXY to PREROUTING rule
+	uname -a | grep vyatta &>/dev/null
+	if [[ $? != 0 ]]; then
+		/sbin/iptables -t nat -L PREROUTING 1 | egrep '^ANYPROXY' &>/dev/null || /sbin/iptables -t nat -I PREROUTING 1 -j ANYPROXY
+	else
+		/sbin/iptables -t nat -L VYATTA_PRE_DNAT_HOOK 1 | egrep '^ANYPROXY' &>/dev/null || /sbin/iptables -t nat -I VYATTA_PRE_DNAT_HOOK 1  -j ANYPROXY
+	fi
+	if [[ "$NET_TO_PROXY" != "" ]]; then
+		S_ARG="-s $NET_TO_PROXY"
+	fi
+	/sbin/iptables -t nat -A ANYPROXY -i eth2 $S_ARG -p tcp -m tcp --dport $PORTS_TO_PROXY  -j REDIRECT --to-ports $LISTENPORT
+	umask 027
+	ulimit -n 65535
+	start-stop-daemon --quiet --start --background --exec $DAEMON -- $ANY_PROXY_ARGS < /dev/null &>/dev/null
+	return $?
+}
+
+stop () {
+	PID=`cat $PIDFILE 2>/dev/null`
+	start-stop-daemon --stop --quiet --exec $DAEMON
+	sleep 2
+	return 0
+}
+
+case "$1" in
+    start)
+	log_daemon_msg "Starting $DESC" "$NAME"
+	if start ; then
+		log_end_msg $?
+	else
+		log_end_msg $?
+	fi
+	;;
+    stop)
+	log_daemon_msg "Stopping $DESC" "$NAME"
+	if stop ; then
+		log_end_msg $?
+	else
+		log_end_msg $?
+	fi
+	;;
+    reload|force-reload)
+	log_action_msg "Reloading $DESC configuration files"
+	start-stop-daemon --stop --signal 1 \
+		--name $DAEMON --quiet --exec $DAEMON
+	log_action_end_msg 0
+	;;
+    restart)
+	log_daemon_msg "Restarting $DESC" "$NAME"
+	stop
+	if start ; then
+		log_end_msg $?
+	else
+		log_end_msg $?
+	fi
+	;;
+    *)
+	echo "Usage: /etc/init.d/$NAME {start|stop|reload|force-reload|restart}"
+	exit 3
+	;;
+esac
+
+exit 0
+

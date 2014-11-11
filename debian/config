@@ -1,0 +1,9 @@
+#!/bin/sh -e
+
+. /usr/share/debconf/confmodule
+
+db_input critical any-proxy/listenport || true
+db_input critical any-proxy/portstoproxy || true
+db_input critical any-proxy/proxyservers || true
+db_input critical any-proxy/directservers || true
+db_go

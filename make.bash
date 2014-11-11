@@ -19,6 +19,11 @@ vEOF
     echo "Wrote $BUILD_DIR/version.go: timestamp=$timestamp; builduser=$builduser; buildhost=$buildhost"
 }
 
+function pull_deps()
+{
+    go get -u github.com/zdannar/flogger
+}
+
 function build ()
 {
     make_version
@@ -38,15 +43,26 @@ function build_failed ()
     cat $BUILD_DIR/version.go | sed 's/^/  /g'
 }
 
+function make_debian_package ()
+{
+    local VERSION=`./any_proxy -h | head -1 | awk '{print $2 "-" $4}' | tr -d ','`
+    echo "any-proxy ($VERSION) UNRELEASED; urgency=low" > debian/changelog
+    git log | sed 's/^/  /g' >> debian/changelog
+    echo " -- Ryan A. Chapman <ryan@rchapman.org>  `date '+%a, %d %b %Y %H:%M:%S %z'`" >> debian/changelog
+    dpkg-buildpackage -d
+}
+
+function reindex_debian_packages ()
+{
+    echo "Rebuilding debian package repos"
+    (cd debian/apt && ./reindex_stable.sh)
+}
 
 export BUILD_DIR=$2
 if [ "$BUILD_DIR" = "" ]; then export BUILD_DIR=.; fi
 case $1 in 
   "clean")
-    rm -f version.go
-    ;;
-  "deploy")
-    build && scp any_proxy sapphire:/nfs/local/linux/any_proxy/
+    rm -f version.go any_proxy
     ;;
   "version")
     make_version
@@ -54,7 +70,31 @@ case $1 in
   "build_failed")
     build_failed
     ;;
+  "package_write_pubkey")
+    TMPF=`mktemp /tmp/anyproxy_pub.XXX`.key
+    gpg --export -a "ryan@rchapman.org" > $TMPF
+    echo "Wrote pubkey to $TMPF"
+    echo "Importing pubkey $TMPF into debian/apt/repo.gpg"
+    gpg --no-default-keyring --keyring debian/apt/repo.gpg --import $TMPF
+    if [[ $? == 0 ]]; then
+        echo "Wrote pubkey successfully to debian/apt/repo.gpg"
+    else
+        echo "ERROR: could not write pubkey to debian/apt/repo.gpg"
+    fi
+    rm -f $TMPF
+    ;;
+  "package")
+    if [[ -f any_proxy ]]; then
+        echo -n "A built product already exist. Re-packaging existing build (y/n) [y]: "
+        read ANS
+        if [[ $ANS != n && $ANS != N ]]; then
+            make_debian_package
+            reindex_debian_packages
+        fi
+    fi
+    ;;
   *)
+    pull_deps
     build
     ;;
 esac
