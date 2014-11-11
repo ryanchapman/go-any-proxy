@@ -75,6 +75,7 @@ var gLogfile string
 var gCpuProfile string
 var gMemProfile string
 var gClientRedirects int
+var gReverseLookups int
 
 type directorFunc func(*net.IP) bool
 var director func(*net.IP) (bool, int)
@@ -97,6 +98,9 @@ func init() {
         fmt.Fprintf(os.Stdout, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
         fmt.Fprintf(os.Stdout, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
         fmt.Fprintf(os.Stdout, "  -r=1             Enable relaying of HTTP redirects from upstream to clients\n")
+        fmt.Fprintf(os.Stdout, "  -h=1             Enable reverse lookups of destination IP address and use hostname in CONNECT\n")
+        fmt.Fprintf(os.Stdout, "                   request instead of the numeric IP if available. A local DNS server could be\n")
+        fmt.Fprintf(os.Stdout, "                   configured to provide a reverse lookup of the forward lookup responses seen.\n")
         fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
         fmt.Fprintf(os.Stdout, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
         fmt.Fprintf(os.Stdout, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
@@ -133,6 +137,7 @@ func init() {
     flag.StringVar(&gMemProfile,      "m", "", "Write mem profile to file")
     flag.IntVar(   &gVerbosity,       "v", 0,  "Control level of logging. v=1 results in debugging info printed to the log.\n")
     flag.IntVar(   &gClientRedirects, "r", 0,  "Should we relay HTTP redirects from upstream proxies? -r=1 if we should.\n")
+    flag.IntVar(   &gReverseLookups,  "h", 0,  "Should we perform reverse lookups of destination IPs and use hostnames? -h=1 if we should.\n")
 
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
@@ -517,6 +522,13 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     host, _, err = net.SplitHostPort(remoteAddr.String())
     if err == nil {
         headerXFF = fmt.Sprintf("X-Forwarded-For: %s\r\n", host)
+    }
+
+    if gReverseLookups == 1 {
+        names, err := net.LookupAddr(ipv4)
+        if err == nil && len(names) > 0 {
+            ipv4 = names[0]
+        }
     }
 
     for _, proxySpec := range gProxyServers {
