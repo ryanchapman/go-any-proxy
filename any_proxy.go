@@ -76,6 +76,7 @@ var gCpuProfile string
 var gMemProfile string
 var gClientRedirects int
 var gReverseLookups int
+var gReverseLookupCache map[string]string
 
 type directorFunc func(*net.IP) bool
 var director func(*net.IP) (bool, int)
@@ -141,6 +142,8 @@ func init() {
 
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
+
+    gReverseLookupCache = make(map[string]string)
 }
 
 func versionString() (v string) {
@@ -524,10 +527,17 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
         headerXFF = fmt.Sprintf("X-Forwarded-For: %s\r\n", host)
     }
 
+    // TODO: cache expiry
     if gReverseLookups == 1 {
-        names, err := net.LookupAddr(ipv4)
-        if err == nil && len(names) > 0 {
-            ipv4 = names[0]
+        hostname := gReverseLookupCache[ipv4]
+        if hostname != "" {
+            ipv4 = hostname
+        } else {
+            names, err := net.LookupAddr(ipv4)
+            if err == nil && len(names) > 0 {
+                gReverseLookupCache[ipv4] = names[0]
+                ipv4 = names[0]
+            }
         }
     }
 
