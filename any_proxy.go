@@ -76,7 +76,44 @@ var gCpuProfile string
 var gMemProfile string
 var gClientRedirects int
 var gReverseLookups int
-var gReverseLookupCache map[string]string
+
+type cacheEntry struct {
+    hostname string
+    expires time.Time
+}
+type reverseLookupCache struct {
+  hostnames map[string]*cacheEntry
+  keys []string
+  next int
+}
+func NewReverseLookupCache() *reverseLookupCache {
+    return &reverseLookupCache{
+        hostnames: make(map[string]*cacheEntry),
+        keys: make([]string,65536),
+    }
+}
+func (c *reverseLookupCache) lookup(ipv4 string) string {
+    hit := c.hostnames[ipv4]
+    if hit != nil {
+        if hit.expires.After(time.Now()) {
+            log.Debugf("lookup(): CACHE_HIT")
+            return hit.hostname
+        } else {
+            log.Debugf("lookup(): CACHE_EXPIRED")
+            delete(c.hostnames, ipv4)
+        }
+    } else {
+        log.Debugf("lookup(): CACHE_MISS")
+    }
+    return ""
+}
+func (c *reverseLookupCache) store(ipv4, hostname string) {
+    delete(c.hostnames, c.keys[c.next])
+    c.keys[c.next] = ipv4
+    c.next = (c.next + 1) & 65535
+    c.hostnames[ipv4] = &cacheEntry{hostname: hostname, expires: time.Now().Add(time.Hour)}
+}
+var gReverseLookupCache *reverseLookupCache
 
 type directorFunc func(*net.IP) bool
 var director func(*net.IP) (bool, int)
@@ -142,8 +179,6 @@ func init() {
 
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
-
-    gReverseLookupCache = make(map[string]string)
 }
 
 func versionString() (v string) {
@@ -278,6 +313,10 @@ func main() {
 
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
+
+    if gReverseLookups == 1 {
+        gReverseLookupCache = NewReverseLookupCache()
+    }
 
     log.RedirectStreams()
 
@@ -527,15 +566,14 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
         headerXFF = fmt.Sprintf("X-Forwarded-For: %s\r\n", host)
     }
 
-    // TODO: cache expiry
     if gReverseLookups == 1 {
-        hostname := gReverseLookupCache[ipv4]
+        hostname := gReverseLookupCache.lookup(ipv4)
         if hostname != "" {
             ipv4 = hostname
         } else {
             names, err := net.LookupAddr(ipv4)
             if err == nil && len(names) > 0 {
-                gReverseLookupCache[ipv4] = names[0]
+                gReverseLookupCache.store(ipv4,names[0])
                 ipv4 = names[0]
             }
         }
