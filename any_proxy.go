@@ -59,7 +59,7 @@ import (
     "encoding/base64"
 )
 
-const VERSION = "1.1"
+const VERSION = "1.2"
 const SO_ORIGINAL_DST = 80
 const DEFAULTLOG = "/var/log/any_proxy.log"
 const STATSFILE  = "/var/log/any_proxy.stats"
