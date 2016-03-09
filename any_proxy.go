@@ -530,7 +530,15 @@ func handleDirectConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     ipport := fmt.Sprintf("%s:%d", ipv4, port)
     directConn, err := dial(ipport)
     if err != nil {
-        log.Infof("DIRECT|%v->%v|Could not connect, giving up: %v", clientConn.RemoteAddr(), directConn.RemoteAddr(), err)
+        clientConnRemoteAddr := "?"
+        if clientConn != nil {
+            clientConnRemoteAddr = fmt.Sprintf("%v", clientConn.RemoteAddr())
+        }
+        directConnRemoteAddr := "?"
+        if directConn != nil {
+            directConnRemoteAddr = fmt.Sprintf("%v", directConn.RemoteAddr())
+        }
+        log.Infof("DIRECT|%v->%v|Could not connect, giving up: %v", clientConnRemoteAddr, directConnRemoteAddr, err)
         return
     }
     log.Debugf("DIRECT|%v->%v|Connected to remote end", clientConn.RemoteAddr(), directConn.RemoteAddr())
