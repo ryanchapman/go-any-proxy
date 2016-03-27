@@ -69,6 +69,7 @@ var gListenAddrPort string
 var gProxyServerSpec string
 var gDirects string
 var gVerbosity int
+var gSkipCheckUpstreamsReachable int
 var gProxyServers []string
 var gAuthProxyServers = map[string] string { }
 var gLogfile string
@@ -126,6 +127,14 @@ func init() {
         fmt.Fprintf(os.Stdout, "Mandatory\n")
         fmt.Fprintf(os.Stdout, "  -l=ADDRPORT      Address and port to listen on (e.g., :3128 or 127.0.0.1:3128)\n")
         fmt.Fprintf(os.Stdout, "Optional\n")
+        fmt.Fprintf(os.Stdout, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
+        fmt.Fprintf(os.Stdout, "                   standard pacakge, can be used to interpret the results. You can invoke pprof\n")
+        fmt.Fprintf(os.Stdout, "                   with \"go tool pprof\"\n")
+        fmt.Fprintf(os.Stdout, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
+        fmt.Fprintf(os.Stdout, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
+        fmt.Fprintf(os.Stdout, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
+        fmt.Fprintf(os.Stdout, "  -h               This usage message\n")
+        fmt.Fprintf(os.Stdout, "  -m=FILE          Write a memory profile to FILE. This file can also be interpreted by golang's pprof\n\n")
         fmt.Fprintf(os.Stdout, "  -p=PROXIES       Address and ports of upstream proxy servers to use\n")
         fmt.Fprintf(os.Stdout, "                   Multiple address/ports can be specified by separating with commas\n")
         fmt.Fprintf(os.Stdout, "                   (e.g., 10.1.1.1:80,10.2.2.2:3128 would try to proxy requests to a\n")
@@ -133,19 +142,12 @@ func init() {
         fmt.Fprintf(os.Stdout, "                    then try port 3128 at 10.2.2.2)\n")
         fmt.Fprintf(os.Stdout, "                   Note that requests are not load balanced. If a request fails to the\n")
         fmt.Fprintf(os.Stdout, "                   first proxy, then the second is tried and so on.\n\n")
-        fmt.Fprintf(os.Stdout, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
-        fmt.Fprintf(os.Stdout, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
         fmt.Fprintf(os.Stdout, "  -r=1             Enable relaying of HTTP redirects from upstream to clients\n")
         fmt.Fprintf(os.Stdout, "  -R=1             Enable reverse lookups of destination IP address and use hostname in CONNECT\n")
         fmt.Fprintf(os.Stdout, "                   request instead of the numeric IP if available. A local DNS server could be\n")
         fmt.Fprintf(os.Stdout, "                   configured to provide a reverse lookup of the forward lookup responses seen.\n")
+        fmt.Fprintf(os.Stdout, "  -s=1             Skip checking if upstream proxy servers are reachable on startup.\n")
         fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
-        fmt.Fprintf(os.Stdout, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
-        fmt.Fprintf(os.Stdout, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
-        fmt.Fprintf(os.Stdout, "                   standard pacakge, can be used to interpret the results. You can invoke pprof\n")
-        fmt.Fprintf(os.Stdout, "                   with \"go tool pprof\"\n")
-        fmt.Fprintf(os.Stdout, "  -m=FILE          Write a memory profile to FILE. This file can also be interpreted by golang's pprof\n\n")
-        fmt.Fprintf(os.Stdout, "  -h               This usage message\n")
         fmt.Fprintf(os.Stdout, "any_proxy should be able to achieve 2000 connections/sec with logging on, 10k with logging off (-f=/dev/null).\n")
         fmt.Fprintf(os.Stdout, "Before starting any_proxy, be sure to change the number of available file handles to at least 65535\n")
         fmt.Fprintf(os.Stdout, "with \"ulimit -n 65535\"\n")
@@ -168,15 +170,16 @@ func init() {
         fmt.Fprintf(os.Stdout, "To obtain statistics, send any_proxy signal SIGUSR1. Current stats will be printed to %v\n", STATSFILE)
         fmt.Fprintf(os.Stdout, "Report bugs to <ryan@rchapman.org>.\n") 
     }
-    flag.StringVar(&gListenAddrPort,  "l", "", "Address and port to listen on")
-    flag.StringVar(&gProxyServerSpec, "p", "", "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
+    flag.StringVar(&gCpuProfile,      "c", "", "Write cpu profile to file")
     flag.StringVar(&gDirects,         "d", "", "IP addresses to go direct")
     flag.StringVar(&gLogfile,         "f", "", "Log file")
-    flag.StringVar(&gCpuProfile,      "c", "", "Write cpu profile to file")
+    flag.StringVar(&gListenAddrPort,  "l", "", "Address and port to listen on")
     flag.StringVar(&gMemProfile,      "m", "", "Write mem profile to file")
-    flag.IntVar(   &gVerbosity,       "v", 0,  "Control level of logging. v=1 results in debugging info printed to the log.\n")
+    flag.StringVar(&gProxyServerSpec, "p", "", "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
     flag.IntVar(   &gClientRedirects, "r", 0,  "Should we relay HTTP redirects from upstream proxies? -r=1 if we should.\n")
     flag.IntVar(   &gReverseLookups,  "R", 0,  "Should we perform reverse lookups of destination IPs and use hostnames? -h=1 if we should.\n")
+    flag.IntVar(   &gSkipCheckUpstreamsReachable, "s", 0,  "On startup, should we check if the upstreams are available? -s=0 means we should and if one is found to be not reachable, then remove it from the upstream list.\n")
+    flag.IntVar(   &gVerbosity,       "v", 0,  "Control level of logging. v=1 results in debugging info printed to the log.\n")
 
     dirFuncs := buildDirectors(gDirects)
     director = getDirector(dirFuncs)
@@ -352,7 +355,7 @@ func main() {
 
 func checkProxies() {
     gProxyServers = strings.Split(gProxyServerSpec, ",")
-    // make sure proxies resolve and are listening on specified port
+    // make sure proxies resolve and are listening on specified port, unless -s=1, then don't check for reachability
     for i, proxySpec := range gProxyServers {
 	if strings.Contains(proxySpec, "@") {
 	    var authSplit = strings.Split(proxySpec, "@")
@@ -363,16 +366,18 @@ func checkProxies() {
 	    log.Infof("Added authentication %v, %v\n", authSplit[0], b64Auth)
 	}
 
-        conn, err := dial(proxySpec)
-        if err != nil {
-            log.Infof("Test connection to %v: failed. Removing from proxy server list\n", proxySpec)
-            a := gProxyServers[:i]
-            b := gProxyServers[i+1:]
-            gProxyServers = append(a, b...)
-            continue
-        }
-        conn.Close()
         log.Infof("Added proxy server %v\n", proxySpec)
+	if gSkipCheckUpstreamsReachable != 1 {
+	    conn, err := dial(proxySpec)
+            if err != nil {
+                log.Infof("Test connection to %v: failed. Removing from proxy server list\n", proxySpec)
+                a := gProxyServers[:i]
+                b := gProxyServers[i+1:]
+                gProxyServers = append(a, b...)
+                continue
+            }
+            conn.Close()
+        }
     }
     // do we have at least one proxy server?
     if len(gProxyServers) == 0 {
