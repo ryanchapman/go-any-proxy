@@ -123,9 +123,9 @@ var director func(*net.IP) (bool, int)
 
 func init() {
     dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-    gConfFile := dir + "/any_proxy.conf"
-    gLogfile := dir + "/any_proxy.log"
-    gStatsFile := dir + "/any_proxy.stats"
+    gConfFile = dir + "/any_proxy.conf"
+    gLogfile = dir + "/any_proxy.log"
+    gStatsFile = dir + "/any_proxy.stats"
 
     flag.Usage = func() {
         fmt.Fprintf(os.Stdout, "%s\n\n", versionString())
