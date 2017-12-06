@@ -9,19 +9,19 @@
 //   1. Redistributions of source code must retain the above copyright notice,
 //      this list of conditions and the following disclaimer.
 //
-//   2. Redistributions in binary form must reproduce the above copyright notice, 
+//   2. Redistributions in binary form must reproduce the above copyright notice,
 //      this list of conditions and the following disclaimer in the documentation
 //      and/or other materials provided with the distribution.
 //
 // THE SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
 // INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
 // FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHORS
-// OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
+// OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
 // PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
 // OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-// WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-// OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+// WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+// OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 //
@@ -43,13 +43,14 @@ package main
 import (
     "bufio"
     "errors"
-    "flag"
+    "github.com/namsral/flag"
     "fmt"
     "io"
     log "github.com/zdannar/flogger"
     "net"
     "os"
     "os/signal"
+    "path/filepath"
     "runtime"
     "runtime/pprof"
     "strconv"
@@ -61,22 +62,23 @@ import (
 
 const VERSION = "1.2"
 const SO_ORIGINAL_DST = 80
-const DEFAULTLOG = "/var/log/any_proxy.log"
-const STATSFILE  = "/var/log/any_proxy.stats"
 
-
-var gListenAddrPort string
-var gProxyServerSpec string
-var gDirects string
-var gVerbosity int
-var gSkipCheckUpstreamsReachable int
-var gProxyServers []string
-var gAuthProxyServers = map[string] string { }
-var gLogfile string
-var gCpuProfile string
-var gMemProfile string
-var gClientRedirects int
-var gReverseLookups int
+var (
+  gConfFile string
+  gStatsFile string
+  gListenAddrPort string
+  gProxyServerSpec string
+  gDirects string
+  gVerbosity int
+  gSkipCheckUpstreamsReachable int
+  gProxyServers []string
+  gAuthProxyServers = map[string] string { }
+  gLogfile string
+  gCpuProfile string
+  gMemProfile string
+  gClientRedirects int
+  gReverseLookups int
+)
 
 type cacheEntry struct {
     hostname string
@@ -120,11 +122,17 @@ type directorFunc func(*net.IP) bool
 var director func(*net.IP) (bool, int)
 
 func init() {
+    dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+    gConfFile = dir + "/any_proxy.conf"
+    gLogfile = dir + "/any_proxy.log"
+    gStatsFile = dir + "/any_proxy.stats"
+
     flag.Usage = func() {
         fmt.Fprintf(os.Stdout, "%s\n\n", versionString())
-        fmt.Fprintf(os.Stdout, "usage: %s -l listenaddress -p proxies [-d directs] [-v=N] [-f file] [-c file] [-m file]\n", os.Args[0])
+        fmt.Fprintf(os.Stdout, "usage: %s -config file -l listenaddress -p proxies [-d directs] [-v=N] [-f file] [-c file] [-m file]\n", os.Args[0])
         fmt.Fprintf(os.Stdout, "       Proxies any tcp port transparently using Linux netfilter\n\n")
         fmt.Fprintf(os.Stdout, "Mandatory\n")
+        fmt.Fprintf(os.Stdout, "  -config=FILE     Path to a configuration file\n")
         fmt.Fprintf(os.Stdout, "  -l=ADDRPORT      Address and port to listen on (e.g., :3128 or 127.0.0.1:3128)\n")
         fmt.Fprintf(os.Stdout, "Optional\n")
         fmt.Fprintf(os.Stdout, "  -c=FILE          Write a CPU profile to FILE. The pprof program, which is part of Golang's\n")
@@ -132,7 +140,7 @@ func init() {
         fmt.Fprintf(os.Stdout, "                   with \"go tool pprof\"\n")
         fmt.Fprintf(os.Stdout, "  -d=DIRECTS       List of IP addresses that the proxy should send to directly instead of\n")
         fmt.Fprintf(os.Stdout, "                   to the upstream proxies (e.g., -d 10.1.1.1,10.1.1.2)\n")
-        fmt.Fprintf(os.Stdout, "  -f=FILE          Log file. If not specified, defaults to %s\n", DEFAULTLOG)
+        fmt.Fprintf(os.Stdout, "  -f=FILE          Log file. If not specified, defaults to %s\n", gLogfile)
         fmt.Fprintf(os.Stdout, "  -h               This usage message\n")
         fmt.Fprintf(os.Stdout, "  -m=FILE          Write a memory profile to FILE. This file can also be interpreted by golang's pprof\n\n")
         fmt.Fprintf(os.Stdout, "  -p=PROXIES       Address and ports of upstream proxy servers to use\n")
@@ -147,7 +155,8 @@ func init() {
         fmt.Fprintf(os.Stdout, "                   request instead of the numeric IP if available. A local DNS server could be\n")
         fmt.Fprintf(os.Stdout, "                   configured to provide a reverse lookup of the forward lookup responses seen.\n")
         fmt.Fprintf(os.Stdout, "  -s=1             Skip checking if upstream proxy servers are reachable on startup.\n")
-        fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", DEFAULTLOG)
+        fmt.Fprintf(os.Stdout, "  -stat=1          Path to a file, where to write the stats file. Defaults to %s\n", gStatsFile)
+        fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", gLogfile)
         fmt.Fprintf(os.Stdout, "any_proxy should be able to achieve 2000 connections/sec with logging on, 10k with logging off (-f=/dev/null).\n")
         fmt.Fprintf(os.Stdout, "Before starting any_proxy, be sure to change the number of available file handles to at least 65535\n")
         fmt.Fprintf(os.Stdout, "with \"ulimit -n 65535\"\n")
@@ -167,18 +176,20 @@ func init() {
         fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_syncookies = 1\n")
         fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_wmem = 4096 65536 16777216\n")
         fmt.Fprintf(os.Stdout, "  net.ipv4.tcp_congestion_control = cubic\n\n")
-        fmt.Fprintf(os.Stdout, "To obtain statistics, send any_proxy signal SIGUSR1. Current stats will be printed to %v\n", STATSFILE)
-        fmt.Fprintf(os.Stdout, "Report bugs to <ryan@rchapman.org>.\n") 
+        fmt.Fprintf(os.Stdout, "To obtain statistics, send any_proxy signal SIGUSR1. Current stats will be printed to %v\n", gStatsFile)
+        fmt.Fprintf(os.Stdout, "Report bugs to <ryan@rchapman.org>.\n")
     }
+    flag.StringVar(&gConfFile,        "config", "", "Configuration file")
     flag.StringVar(&gCpuProfile,      "c", "", "Write cpu profile to file")
     flag.StringVar(&gDirects,         "d", "", "IP addresses to go direct")
-    flag.StringVar(&gLogfile,         "f", "", "Log file")
+    flag.StringVar(&gLogfile,         "f", gLogfile, "Log file")
     flag.StringVar(&gListenAddrPort,  "l", "", "Address and port to listen on")
     flag.StringVar(&gMemProfile,      "m", "", "Write mem profile to file")
     flag.StringVar(&gProxyServerSpec, "p", "", "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
     flag.IntVar(   &gClientRedirects, "r", 0,  "Should we relay HTTP redirects from upstream proxies? -r=1 if we should.\n")
     flag.IntVar(   &gReverseLookups,  "R", 0,  "Should we perform reverse lookups of destination IPs and use hostnames? -h=1 if we should.\n")
     flag.IntVar(   &gSkipCheckUpstreamsReachable, "s", 0,  "On startup, should we check if the upstreams are available? -s=0 means we should and if one is found to be not reachable, then remove it from the upstream list.\n")
+    flag.StringVar(&gStatsFile, "stat", gStatsFile,  "Path to a file, where stats will be written.\n")
     flag.IntVar(   &gVerbosity,       "v", 0,  "Control level of logging. v=1 results in debugging info printed to the log.\n")
 
     dirFuncs := buildDirectors(gDirects)
@@ -194,7 +205,7 @@ func versionString() (v string) {
 
 func buildDirectors(gDirects string) ([]directorFunc) {
     // Generates a list of directorFuncs that are have "cached" values within
-    // the scope of the functions.  
+    // the scope of the functions.
 
     directorCidrs := strings.Split(gDirects, ",")
     directorFuncs := make([]directorFunc, len(directorCidrs))
@@ -229,11 +240,11 @@ func buildDirectors(gDirects string) ([]directorFunc) {
 
 func getDirector(directors []directorFunc) func(*net.IP) (bool, int) {
     // getDirector:
-    // Returns a function(directorFunc) that loops through internally held 
+    // Returns a function(directorFunc) that loops through internally held
     // directors evaluating each for possible matches.
-    // 
-    // directorFunc: 
-    // Loops through directors and returns the (true, idx) where the index is 
+    //
+    // directorFunc:
+    // Loops through directors and returns the (true, idx) where the index is
     // the sequential director that returned true. Else the function returns
     // (false, 0) if there are no directors to handle the ip.
 
@@ -289,14 +300,12 @@ func setupProfiling() {
 }
 
 func setupLogging() {
-    if gLogfile == "" {
-        gLogfile = DEFAULTLOG
-    }
-
     log.SetLevel(log.INFO)
     if gVerbosity != 0 {
         log.SetLevel(log.DEBUG)
     }
+
+    fmt.Printf("gLogfile = %s", gLogfile)
 
     if err := log.OpenFile(gLogfile, log.FLOG_APPEND, 0644); err != nil {
         log.Fatalf("Unable to open log file : %s", err)
@@ -444,7 +453,7 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
 
     newTCPConn = nil
     // net.TCPConn.File() will cause the receiver's (clientConn) socket to be placed in blocking mode.
-    // The workaround is to take the File returned by .File(), do getsockopt() to get the original 
+    // The workaround is to take the File returned by .File(), do getsockopt() to get the original
     // destination, then create a new *net.TCPConn by calling net.Conn.FileConn().  The new TCPConn
     // will be in non-blocking mode.  What a pain.
     clientConnFile, err := clientConn.File()
@@ -481,9 +490,9 @@ func getOriginalDst(clientConn *net.TCPConn) (ipv4 string, port uint16, newTCPCo
         return
     }
 
-    ipv4 = itod(uint(addr.Multiaddr[4])) + "." + 
-           itod(uint(addr.Multiaddr[5])) + "." + 
-           itod(uint(addr.Multiaddr[6])) + "." + 
+    ipv4 = itod(uint(addr.Multiaddr[4])) + "." +
+           itod(uint(addr.Multiaddr[5])) + "." +
+           itod(uint(addr.Multiaddr[6])) + "." +
            itod(uint(addr.Multiaddr[7]))
     port = uint16(addr.Multiaddr[2]) << 8 + uint16(addr.Multiaddr[3])
 
@@ -648,7 +657,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
         fmt.Fprintf(clientConn, "HTTP/1.0 503 Service Unavailable\r\nServer: go-any-proxy\r\nX-AnyProxy-Error: ERR_NO_PROXIES\r\n\r\n")
         clientConn.Close()
         return
-    } 
+    }
     incrProxiedConnections()
     go copy(clientConn, proxyConn, "client", "proxyserver")
     go copy(proxyConn, clientConn, "proxyserver", "client")
@@ -676,7 +685,7 @@ func handleConnection(clientConn *net.TCPConn) {
     if gProxyServerSpec == "" {
             handleDirectConnection(clientConn, ipv4, port)
             return
-    } 
+    }
     // Evaluate for direct connection
     ip := net.ParseIP(ipv4)
     if ok,_ := director(&ip); ok {

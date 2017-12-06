@@ -257,9 +257,9 @@ func setupStats() {
     signal.Notify(c, syscall.SIGUSR1)
     go func() {
         for _ = range c {
-            f, err := os.Create(STATSFILE)
+            f, err := os.Create(gStatsFile)
             if err != nil {
-                log.Infof("ERR: Could not open stats file \"%s\": %v", STATSFILE, err)
+                log.Infof("ERR: Could not open stats file \"%s\": %v", gStatsFile, err)
                 continue
             }
             fmt.Fprintf(f, "%s\n\n", versionString())

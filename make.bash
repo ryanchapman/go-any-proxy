@@ -22,6 +22,7 @@ vEOF
 function pull_deps()
 {
     go get -u github.com/zdannar/flogger
+    go get -u github.com/namsral/flag
 }
 
 function build ()
