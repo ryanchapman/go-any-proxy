@@ -14,6 +14,12 @@ Build status can be found at http://travis-ci.org/ryanchapman/go-any-proxy
 
 For more info, see http://blog.rchapman.org/post/47406142744/transparently-proxying-http-and-https-connections
 
+## Maintenance		
+		
+This project is actively maintained.  As of this writing (October 2017), I haven't had any bugs submitted in a few		
+years, which is why you don't see much for code changing.  But be assured that I am watching the project and will		
+address any bugs that come in.		
+
 ## Authentication
 
 You can add basic authentication parameters if needed, like this:
