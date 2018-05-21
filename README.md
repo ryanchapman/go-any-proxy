@@ -14,20 +14,21 @@ Build status can be found at http://travis-ci.org/ryanchapman/go-any-proxy
 
 For more info, see http://blog.rchapman.org/post/47406142744/transparently-proxying-http-and-https-connections
 
-## Maintenance
-
-This project is actively maintained.  As of this writing (October 2017), I haven't had any bugs submitted in a few
-years, which is why you don't see much for code changing.  But be assured that I am watching the project and will
-address any bugs that come in.
-
 ## Authentication
 
 You can add basic authentication parameters if needed, like this:
 
 `any_proxy -l :3140 -p "MyLogin:Password25@proxy.corporate.com:8080"`
 
-## Install Info 
-You may need to run `go get github.com/zdannar/flogger` for library dependencies.
+## Installation
+
+```
+$ git clone https://github.com/ryanchapman/go-any-proxy.git
+$ cd go-any-proxy
+$ ./make.bash
+```
+
+You'll end up with a binary `any_proxy`
 
 ## Experimental Mac OS X support
 Fredrik Skogbreg has written the support for Mac OS X, but it is considered experimental until a load and performance
