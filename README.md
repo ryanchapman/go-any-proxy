@@ -26,8 +26,15 @@ You can add basic authentication parameters if needed, like this:
 
 `any_proxy -l :3140 -p "MyLogin:Password25@proxy.corporate.com:8080"`
 
-## Install Info 
-You may need to run `go get github.com/zdannar/flogger` for library dependencies.
+## Installation
+
+```
+$ git clone https://github.com/ryanchapman/go-any-proxy.git
+$ cd go-any-proxy
+$ ./make.bash
+```
+
+You'll end up with a binary `any_proxy`
 
 ## Experimental Mac OS X support
 Fredrik Skogbreg has written the support for Mac OS X, but it is considered experimental until a load and performance
