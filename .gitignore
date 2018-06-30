@@ -4,6 +4,7 @@
 !any_proxy.go
 !make.bash
 !stats.go
+!sni.go
 !COPYING
 !README*
 !builds/

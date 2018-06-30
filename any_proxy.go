@@ -41,6 +41,7 @@
 package main
 
 import (
+    "bytes"
     "bufio"
     "errors"
     "github.com/namsral/flag"
@@ -567,6 +568,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var success bool = false
     var host string
     var headerXFF string = ""
+    var handshakeBuf bytes.Buffer
 
     // TODO: remove
     log.Debugf("Enter handleProxyConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
@@ -609,13 +611,17 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             continue
         }
         log.Debugf("PROXY|%v->%v->%s:%d|Connected to proxy\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
+	host, _, _ = extractSNI(io.TeeReader(clientConn, &handshakeBuf))
+	log.Infof("SNI Extraction| Hostname is %v", host)
 	var authString = ""
 	if val, auth := gAuthProxyServers[proxySpec]; auth {
 	  authString = fmt.Sprintf("\r\nProxy-Authorization: Basic %s", val)
 	}
-        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0%s\r\n%s\r\n", ipv4, port, authString, headerXFF)
+        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0%s\r\n%s\r\n", host, port, authString, headerXFF)
         log.Debugf("PROXY|%v->%v->%s:%d|Sending to proxy: %s\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(connectString))
         fmt.Fprintf(proxyConn, connectString)
+        // Sending back initial HELLO which we parsed
+	proxyConn.Write(handshakeBuf.Bytes()) 
         status, err := bufio.NewReader(proxyConn).ReadString('\n')
         log.Debugf("PROXY|%v->%v->%s:%d|Received from proxy: %s", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(status))
         if err != nil {
