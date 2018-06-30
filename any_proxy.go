@@ -567,6 +567,7 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var err error
     var success bool = false
     var host string
+    var connectHostname string
     var headerXFF string = ""
     var handshakeBuf bytes.Buffer
 
@@ -612,12 +613,20 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
         }
         log.Debugf("PROXY|%v->%v->%s:%d|Connected to proxy\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
 	host, _, _ = extractSNI(io.TeeReader(clientConn, &handshakeBuf))
-	log.Infof("SNI Extraction| Hostname is %v", host)
+    connectHostname = host
+
+    // Use IPv4 in case hostname is not available
+    if len(host) == 0 {
+        host = "-"
+        connectHostname = ipv4
+    }
+
+	log.Infof("%v %v %v %s:%d", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), host, ipv4, port)
 	var authString = ""
 	if val, auth := gAuthProxyServers[proxySpec]; auth {
 	  authString = fmt.Sprintf("\r\nProxy-Authorization: Basic %s", val)
 	}
-        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0%s\r\n%s\r\n", host, port, authString, headerXFF)
+        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0%s\r\n%s\r\n", connectHostname, port, authString, headerXFF)
         log.Debugf("PROXY|%v->%v->%s:%d|Sending to proxy: %s\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(connectString))
         fmt.Fprintf(proxyConn, connectString)
         // Sending back initial HELLO which we parsed
