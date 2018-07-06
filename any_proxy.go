@@ -41,6 +41,7 @@
 package main
 
 import (
+    "bytes"
     "bufio"
     "errors"
     "github.com/namsral/flag"
@@ -78,6 +79,7 @@ var (
   gMemProfile string
   gClientRedirects int
   gReverseLookups int
+  gSNIParsing int
 )
 
 type cacheEntry struct {
@@ -155,6 +157,7 @@ func init() {
         fmt.Fprintf(os.Stdout, "                   request instead of the numeric IP if available. A local DNS server could be\n")
         fmt.Fprintf(os.Stdout, "                   configured to provide a reverse lookup of the forward lookup responses seen.\n")
         fmt.Fprintf(os.Stdout, "  -s=1             Skip checking if upstream proxy servers are reachable on startup.\n")
+        fmt.Fprintf(os.Stdout, "  -S=1             Enable SNI parsing in HTTPS connections and use hostname for CONNECT\n")
         fmt.Fprintf(os.Stdout, "  -stat=1          Path to a file, where to write the stats file. Defaults to %s\n", gStatsFile)
         fmt.Fprintf(os.Stdout, "  -v=1             Print debug information to logfile %s\n", gLogfile)
         fmt.Fprintf(os.Stdout, "any_proxy should be able to achieve 2000 connections/sec with logging on, 10k with logging off (-f=/dev/null).\n")
@@ -188,6 +191,7 @@ func init() {
     flag.StringVar(&gProxyServerSpec, "p", "", "Proxy servers to use, separated by commas. E.g. -p proxy1.tld.com:80,proxy2.tld.com:8080,proxy3.tld.com:80")
     flag.IntVar(   &gClientRedirects, "r", 0,  "Should we relay HTTP redirects from upstream proxies? -r=1 if we should.\n")
     flag.IntVar(   &gReverseLookups,  "R", 0,  "Should we perform reverse lookups of destination IPs and use hostnames? -h=1 if we should.\n")
+    flag.IntVar(   &gSNIParsing,      "S", 0,  "Should we parse for SSL hostname while making connections? -S=1 if we should.\n")
     flag.IntVar(   &gSkipCheckUpstreamsReachable, "s", 0,  "On startup, should we check if the upstreams are available? -s=0 means we should and if one is found to be not reachable, then remove it from the upstream list.\n")
     flag.StringVar(&gStatsFile, "stat", gStatsFile,  "Path to a file, where stats will be written.\n")
     flag.IntVar(   &gVerbosity,       "v", 0,  "Control level of logging. v=1 results in debugging info printed to the log.\n")
@@ -566,7 +570,9 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
     var err error
     var success bool = false
     var host string
+    var connectHostname string
     var headerXFF string = ""
+    var handshakeBuf bytes.Buffer
 
     // TODO: remove
     log.Debugf("Enter handleProxyConnection: clientConn=%+v (%T)\n", clientConn, clientConn)
@@ -609,14 +615,26 @@ func handleProxyConnection(clientConn *net.TCPConn, ipv4 string, port uint16) {
             continue
         }
         log.Debugf("PROXY|%v->%v->%s:%d|Connected to proxy\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port)
+        connectHostname = ipv4
+        if gSNIParsing == 1 {
+            host, _, _ = extractSNI(io.TeeReader(clientConn, &handshakeBuf))
+            if len(host) != 0 {
+                connectHostname = host
+            }
+	    log.Debugf("SNI-PARSING|%v via %v for %v on destination %s:%d", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), host, ipv4, port)
+	}
 	var authString = ""
 	if val, auth := gAuthProxyServers[proxySpec]; auth {
 	  authString = fmt.Sprintf("\r\nProxy-Authorization: Basic %s", val)
 	}
-        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0%s\r\n%s\r\n", ipv4, port, authString, headerXFF)
+        connectString := fmt.Sprintf("CONNECT %s:%d HTTP/1.0%s\r\n%s\r\n", connectHostname, port, authString, headerXFF)
         log.Debugf("PROXY|%v->%v->%s:%d|Sending to proxy: %s\n", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(connectString))
         fmt.Fprintf(proxyConn, connectString)
-        status, err := bufio.NewReader(proxyConn).ReadString('\n')
+        if gSNIParsing == 1 {
+	    // Sending back initial HELLO which we parsed
+            proxyConn.Write(handshakeBuf.Bytes()) 
+        }
+	status, err := bufio.NewReader(proxyConn).ReadString('\n')
         log.Debugf("PROXY|%v->%v->%s:%d|Received from proxy: %s", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, strconv.Quote(status))
         if err != nil {
             log.Infof("PROXY|%v->%v->%s:%d|ERR: Could not find response to CONNECT: err=%v. Trying next proxy", clientConn.RemoteAddr(), proxyConn.RemoteAddr(), ipv4, port, err)

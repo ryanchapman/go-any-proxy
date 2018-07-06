@@ -28,7 +28,7 @@ function pull_deps()
 function build ()
 {
     make_version
-    go build any_proxy.go stats.go version.go
+    go build any_proxy.go sni.go stats.go version.go
     return $?
 }
 
