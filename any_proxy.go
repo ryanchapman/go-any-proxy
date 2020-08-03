@@ -56,6 +56,7 @@ import (
     "runtime/pprof"
     "strconv"
     "strings"
+    "sync"
     "syscall"
     "time"
     "encoding/base64"
@@ -90,6 +91,7 @@ type reverseLookupCache struct {
   hostnames map[string]*cacheEntry
   keys []string
   next int
+  mu   sync.Mutex
 }
 func NewReverseLookupCache() *reverseLookupCache {
     return &reverseLookupCache{
@@ -98,6 +100,8 @@ func NewReverseLookupCache() *reverseLookupCache {
     }
 }
 func (c *reverseLookupCache) lookup(ipv4 string) string {
+    c.mu.Lock()
+    defer c.mu.Unlock()
     hit := c.hostnames[ipv4]
     if hit != nil {
         if hit.expires.After(time.Now()) {
@@ -113,6 +117,8 @@ func (c *reverseLookupCache) lookup(ipv4 string) string {
     return ""
 }
 func (c *reverseLookupCache) store(ipv4, hostname string) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
     delete(c.hostnames, c.keys[c.next])
     c.keys[c.next] = ipv4
     c.next = (c.next + 1) & 65535
