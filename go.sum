@@ -1,0 +1,4 @@
+github.com/namsral/flag v1.7.4-pre h1:b2ScHhoCUkbsq0d2C15Mv+VU8bl8hAXV8arnWiOHNZs=
+github.com/namsral/flag v1.7.4-pre/go.mod h1:OXldTctbM6SWH1K899kPZcf65KxJiD7MsceFUpB5yDo=
+github.com/zdannar/flogger v0.0.0-20160527010203-f7a4368a7b39 h1:DHhhdGw8vFK3rCXtOZOeWDI/iGogzUoub6ALBCXbBnI=
+github.com/zdannar/flogger v0.0.0-20160527010203-f7a4368a7b39/go.mod h1:H7zxwnSa2KPPzdg9tJ6/OhuTTSuO47NRyGStOb+9oFk=
