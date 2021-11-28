@@ -2,6 +2,8 @@
 !.gitignore
 !*_test.go
 !any_proxy.go
+!go.mod
+!go.sum
 !make.bash
 !stats.go
 !sni.go
