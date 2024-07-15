@@ -12,7 +12,7 @@ For more info, see http://blog.rchapman.org/post/47406142744/transparently-proxy
 
 ## Maintenance
 
-This project is actively maintained.  As of this writing (Jult 2024), I haven't had many bugs submitted in a few
+This project is actively maintained.  As of this writing (July 2024), I haven't had many bugs submitted in a few
 years, which is why you don't see much for code changing.  But be assured that I am watching the project and will
 address any bugs that come in.
 
