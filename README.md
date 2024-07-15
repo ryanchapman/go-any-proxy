@@ -1,14 +1,10 @@
-[![Build Status](https://travis-ci.org/ryanchapman/go-any-proxy.png)](https://travis-ci.org/ryanchapman/go-any-proxy)
+[![any-proxy Build and Test](https://github.com/ryanchapman/go-any-proxy/actions/workflows/any-proxy.yml/badge.svg)](https://github.com/ryanchapman/go-any-proxy/actions/workflows/any-proxy.yml)
 
 # Any Proxy
 
 go-any-proxy is a server that can transparently proxy any tcp connection through an upstream proxy server.  This type
 of setup is common in corporate environments.  It is written in golang and has been load tested with 10,000 concurrent
 connections successfully on a Vyatta running a 64-bit kernel.
-
-## Travis-CI
-
-Build status can be found at http://travis-ci.org/ryanchapman/go-any-proxy
 
 ## More info
 
