@@ -32,18 +32,6 @@ function build ()
     return $?
 }
 
-function build_failed ()
-{
-    echo "TRAVIS_TEST_RESULT=$TRAVIS_TEST_RESULT"
-    echo "Build failed."
-    echo "CWD:"
-    pwd | sed 's/^/  /g'
-    echo "Environment:"
-    set | sed 's/^/  /g'
-    echo "$BUILD_DIR/version.go:"
-    cat $BUILD_DIR/version.go | sed 's/^/  /g'
-}
-
 function make_debian_package ()
 {
     local VERSION=`./any_proxy -h | head -1 | awk '{print $2 "-" $4}' | tr -d ','`
@@ -67,9 +55,6 @@ case $1 in
     ;;
   "version")
     make_version
-    ;;
-  "build_failed")
-    build_failed
     ;;
   "package_write_pubkey")
     TMPF=`mktemp /tmp/anyproxy_pub.XXX`.key

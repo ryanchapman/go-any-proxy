@@ -25,9 +25,3 @@ jobs:
 
     - name: Run tests
       run: go test -v ./...
-
-    - name: Run build failed script
-      if: failure()
-      run: |
-        ./make.bash build_failed
-
