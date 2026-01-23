@@ -12,7 +12,7 @@ For more info, see http://blog.rchapman.org/post/47406142744/transparently-proxy
 
 ## Maintenance
 
-This project is actively maintained.  As of this writing (December 2025), I haven't had many bugs submitted in a few
+This project is actively maintained.  As of this writing (January 2026), I haven't had many bugs submitted in a few
 years, which is why you don't see much for code changing.  But be assured that I am watching the project and will
 address any bugs that come in.
 
@@ -39,5 +39,14 @@ change to the mac branch with `git checkout mac`, then make with `./make.bash`. 
 rules in Mac OS X firewall, see issue #16 (https://github.com/ryanchapman/go-any-proxy/pull/16) for instructions.
 
 
+## Contribution Policy
+
+Open source contributions are welcomed, but with one caveat: you cannot use AI.
+
+AI will be allowed one day.  Once the AI tools support a way to provide a full transcript of all
+interactions that contributed to a PR, this policy will be changed.
+
+
 -Ryan A. Chapman<br>
- Sun Nov  2 16:39:24 MST 2014
+ Updated Thu Jan 22 23:01:00 MST 2026
+
